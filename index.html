@@ -1,0 +1,2364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rockumentary Map</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:ital,wght@0,300..900;1,300..900&family=Open+Sans+Condensed:wght@300;700&family=Patrick+Hand+SC&family=Permanent+Marker&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+
+  <style>
+    :root{
+      --panel:#12131a;
+      --panel-2:#1b1d27;
+      --line:#2c2f3d;
+      --text:#eceef4;
+      --muted:#9aa0b3;
+      --accent:#ffcc33;
+      --font:"Roboto Condensed","Arial Narrow",Arial,sans-serif;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;height:100%;background:#0b0c10;color:var(--text);font-family:var(--font)}
+    #map{position:fixed;inset:0}
+
+    /* ---------- top-left info grid ---------- */
+    #top-left-info{position:fixed;top:16px;left:16px;z-index:5;display:flex;gap:8px}
+    #top-left-info > div{background:rgba(18,19,26,.92);border:1px solid var(--line);border-radius:6px;padding:8px 14px;min-width:120px}
+    .info-label{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+    .info-value{font-size:26px;font-weight:800;line-height:1.1;color:var(--accent);font-variant-numeric:tabular-nums}
+
+    /* ---------- side panel ---------- */
+    #panel{position:fixed;top:92px;left:16px;bottom:16px;width:340px;z-index:5;background:rgba(18,19,26,.95);border:1px solid var(--line);border-radius:8px;display:flex;flex-direction:column;overflow:hidden}
+    #panel header{padding:14px 16px 10px;border-bottom:1px solid var(--line)}
+    #panel h1{margin:0;font-size:24px;font-weight:900;letter-spacing:.04em;text-transform:uppercase}
+    #panel h1 span{color:var(--accent)}
+    #panel .sub{margin:2px 0 0;font-size:13px;color:var(--muted)}
+    #layers{padding:6px 8px;border-bottom:1px solid var(--line)}
+    .layer-row{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:6px;cursor:pointer}
+    .layer-row:hover{background:var(--panel-2)}
+    .layer-row.focused{background:var(--panel-2);outline:1px solid var(--line)}
+    .layer-row input{accent-color:var(--accent);width:16px;height:16px;cursor:pointer}
+    .chip{width:12px;height:12px;border-radius:50%;flex:none}
+    .layer-name{flex:1;font-size:14.5px;font-weight:600;line-height:1.2}
+    .layer-era{display:block;font-size:12px;font-weight:400;color:var(--muted)}
+    .layer-count{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+    #places{flex:1;overflow-y:auto;padding:6px 8px 12px}
+    .group-title{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);padding:12px 8px 4px}
+    .place{display:flex;gap:10px;align-items:flex-start;padding:7px 8px;border-radius:6px;cursor:pointer}
+    .place:hover{background:var(--panel-2)}
+    .place .num{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800;color:#111}
+    .place .pname{font-size:14.5px;font-weight:600;line-height:1.25}
+    .place .pmeta{font-size:12.5px;color:var(--muted);line-height:1.3}
+    .tag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;border-radius:3px;padding:0 4px;margin-left:4px;vertical-align:1px}
+    .tag.approx{background:#3a2d0b;color:#f7cf6b}
+    .tag.missing{background:#3d1418;color:#ff9aa2}
+    .place-btn{margin-top:4px;font:inherit;font-size:12px;font-weight:700;background:var(--accent);color:#111;border:0;border-radius:4px;padding:2px 8px;cursor:pointer}
+
+    #toolbar{display:flex;gap:6px;flex-wrap:wrap;padding:10px 12px;border-top:1px solid var(--line)}
+    #toolbar button,#basemap{font:inherit;font-size:13px;font-weight:600;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:5px;padding:6px 10px;cursor:pointer;display:inline-flex;align-items:center;gap:4px}
+    #toolbar button .material-icons{font-size:16px}
+    #toolbar button.on{background:var(--accent);color:#111;border-color:var(--accent)}
+    #toolbar button:focus-visible,.layer-row:focus-visible,.place:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+
+    #historic{padding:10px 12px;border-top:1px solid var(--line);display:grid;gap:8px}
+    #historic .h-title{display:flex;align-items:center;gap:8px;font-size:14.5px;font-weight:700}
+    #historic .h-title input{accent-color:var(--accent);width:16px;height:16px}
+    #historic .h-row{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);flex-wrap:wrap}
+    #historic input[type=range]{flex:1;accent-color:var(--accent);min-width:120px}
+    #historic button,#historic label.file{font:inherit;font-size:12.5px;font-weight:600;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:5px;padding:5px 9px;cursor:pointer;display:inline-flex;align-items:center;gap:4px}
+    #historic button.on{background:var(--accent);color:#111;border-color:var(--accent)}
+    #historic .material-icons{font-size:16px}
+    #historic .hint{font-size:12px;color:var(--muted);line-height:1.35}
+    #hist-tools{display:grid;gap:6px;background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:8px}
+    #hist-tools .t-row{display:flex;align-items:center;gap:4px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+    #hist-tools .t-row > span:first-child{width:52px}
+    #hist-tools button{padding:3px 7px;min-width:30px;justify-content:center}
+    #hist-tools .keys{font-size:11.5px;color:var(--muted);line-height:1.35}
+    .move-handle{width:40px;height:40px;border-radius:50%;background:var(--accent);border:2px solid #111;box-shadow:0 2px 10px rgba(0,0,0,.6);display:grid;place-items:center;cursor:move;color:#111}
+    .move-handle .material-icons{font-size:24px}
+    .corner{width:18px;height:18px;border-radius:3px;background:var(--accent);border:2px solid #111;box-shadow:0 0 0 2px var(--accent);cursor:grab}
+    #edit-banner{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:6;background:var(--accent);color:#111;font-weight:700;font-size:14px;padding:8px 14px;border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.4);max-width:calc(100% - 32px);text-align:center}
+    #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:7;background:#fff;color:#111;font-weight:600;padding:8px 14px;border-radius:6px;font-size:14px}
+
+    /* ---------- legend ---------- */
+    #map-legend{position:fixed;right:16px;bottom:30px;z-index:5;background:rgba(18,19,26,.92);border:1px solid var(--line);border-radius:6px;padding:10px 12px;font-size:13px;max-width:240px}
+    #map-legend .row{display:flex;align-items:center;gap:8px;margin:3px 0}
+    #map-legend .title{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+
+    /* ---------- markers ---------- */
+    .pin{cursor:pointer}
+    .pin:hover{transform:scale(1.15)}
+    .pin.approx{border-style:dashed}
+    .editing .pin{cursor:grab;outline:2px solid #fff;outline-offset:2px}
+
+    .maplibregl-popup-content{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:12px 14px;font-family:var(--font);max-width:280px}
+    .maplibregl-popup-tip{border-top-color:var(--panel)!important;border-bottom-color:var(--panel)!important}
+    .maplibregl-popup-close-button{color:var(--muted);font-size:18px}
+    .pop-layer{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:700}
+    .pop-name{font-size:19px;font-weight:800;line-height:1.15;margin:2px 0 4px}
+    .pop-now{font-size:13px;color:var(--accent);margin-bottom:4px}
+    .pop-note{font-size:13.5px;line-height:1.4;color:#d4d7e2}
+    .pop-src{font-size:11.5px;color:var(--muted);margin-top:6px}
+    .pop-gal{margin:6px 0 8px}
+    .pop-gal .frame{position:relative;border-radius:6px;overflow:hidden;background:#0d0e14}
+    .pop-gal img{display:block;width:100%;height:auto;max-height:220px;object-fit:contain;cursor:zoom-in}
+    .pop-gal .nav{position:absolute;top:50%;transform:translateY(-50%);width:30px;height:30px;border-radius:50%;border:0;background:rgba(0,0,0,.6);color:#fff;cursor:pointer;display:grid;place-items:center;padding:0}
+    .pop-gal .nav.prev{left:6px}.pop-gal .nav.next{right:6px}
+    .pop-gal .nav .material-icons{font-size:20px}
+    .pop-gal .cap{font-size:12.5px;color:#d4d7e2;margin-top:5px;line-height:1.35}
+    .pop-gal .cap small{display:block;color:var(--muted);font-size:11px}
+    .pop-gal .count{position:absolute;right:6px;bottom:6px;background:rgba(0,0,0,.65);color:#fff;font-size:11px;padding:1px 6px;border-radius:10px}
+    #lightbox{position:fixed;inset:0;z-index:20;background:rgba(5,6,9,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:24px}
+    #lightbox[hidden],[hidden]{display:none!important}
+    #lightbox img{max-width:100%;max-height:78vh;object-fit:contain;border-radius:4px}
+    #lightbox .lb-cap{color:#e6e8ef;font-size:15px;text-align:center;max-width:720px}
+    #lightbox .lb-cap small{display:block;color:var(--muted);font-size:12.5px;margin-top:2px}
+    #lightbox button{position:absolute;border:0;background:rgba(255,255,255,.12);color:#fff;width:44px;height:44px;border-radius:50%;cursor:pointer;display:grid;place-items:center}
+    #lightbox .lb-close{top:16px;right:16px}#lightbox .lb-prev{left:16px;top:50%}#lightbox .lb-next{right:16px;top:50%}
+    #lightbox button:focus-visible{outline:2px solid var(--accent)}
+
+    /* ---------- pins: MapLibre positions the outer element, we animate the inner dot ---------- */
+    /* illustrated "sticker" pins: a drawn icon on the layer colour, thick ink outline, hard cartoon shadow */
+    .pin-wrap{width:36px;height:36px}
+    .pin{position:relative;width:36px;height:36px;border-radius:50%;border:2.5px solid #111;box-shadow:2.5px 2.5px 0 #111;
+      display:grid;place-items:center;transition:transform .35s, opacity .35s, box-shadow .35s}
+    .pin svg{width:24px;height:24px;display:block;overflow:visible}
+    .pin .badge{position:absolute;top:-7px;right:-8px;min-width:17px;height:17px;padding:0 3px;border-radius:9px;background:#fff;border:2px solid #111;
+      font:800 10px/13px var(--font);color:#111;text-align:center}
+    .pin.dim{opacity:.35;transform:scale(.8)}
+    .pin.hl{transform:scale(1.3);box-shadow:2.5px 2.5px 0 #111,0 0 0 5px rgba(255,204,51,.55),0 0 26px rgba(255,204,51,.8)}
+    .where{display:flex;align-items:center;gap:8px;pointer-events:none}
+    .where .w-dot{width:22px;height:22px;border-radius:50%;background:#e8403a;border:2.5px solid #111;box-shadow:2px 2px 0 #111;flex:none;position:relative}
+    .where .w-dot::after{content:"";position:absolute;inset:5px;border-radius:50%;background:#fff}
+    .where.big .w-dot{width:30px;height:30px;animation:wherePulse 1.8s ease-out 2}
+    .where .w-tag{background:#fff;color:#111;border:2.5px solid #111;box-shadow:2.5px 2.5px 0 #111;border-radius:4px;padding:3px 9px;transform:rotate(-2deg);white-space:nowrap;font:900 14px/1.1 var(--font);text-transform:uppercase;letter-spacing:.04em}
+    .where .w-tag small{display:block;font:600 11px/1.2 var(--font);text-transform:none;letter-spacing:0;color:#444}
+    @keyframes wherePulse{0%{box-shadow:2px 2px 0 #111,0 0 0 0 rgba(232,64,58,.6)}100%{box-shadow:2px 2px 0 #111,0 0 0 18px rgba(232,64,58,0)}}
+    @media (prefers-reduced-motion:reduce){.where.big .w-dot{animation:none}}
+    .pin-label{position:absolute;left:44px;top:50%;transform:translateY(-50%) rotate(var(--rot,-2deg));display:none;white-space:nowrap;pointer-events:none;
+      background:#fff;color:#111;border:2px solid #111;border-radius:9px;box-shadow:2px 2px 0 #111;padding:1px 8px 0;
+      font:18px/1.2 "Patrick Hand SC","Comic Sans MS",cursive;letter-spacing:.02em}
+    .pin-wrap.show-label .pin-label, body.labels-on .pin-wrap .pin-label, .pin-wrap:hover .pin-label{display:block}
+    .pin-wrap.show-label, .pin-wrap:hover{z-index:3}
+    .area-label{pointer-events:none;font:20px/1 "Permanent Marker","Comic Sans MS",cursive;color:#f3e9d2;letter-spacing:.06em;white-space:nowrap;
+      text-shadow:0 2px 0 rgba(0,0,0,.55);transform:rotate(var(--rot,-4deg));opacity:.92}
+    .area-label.small{font-size:15px;opacity:.8}
+    .waves{pointer-events:none;width:46px;height:18px;opacity:.9}
+    body.far .area-label, body.far .waves{display:none}
+    .pin.pop{animation:pinpop .5s cubic-bezier(.2,1.4,.4,1) both}
+    @keyframes pinpop{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+
+    /* ---------- story mode ---------- */
+    body.story{height:auto;min-height:100%}   /* let the document itself scroll the story */
+    body.story #panel, body.story #map-legend, body.story .maplibregl-ctrl-top-right{display:none}
+    body:not(.story) #story, body:not(.story) #to-explore, body:not(.story) #scrim{display:none}
+    #scrim{position:fixed;inset:0;z-index:2;background:rgba(8,9,13,.78);opacity:0;pointer-events:none;transition:opacity .7s}
+    #scrim.on{opacity:1}
+    #story{position:relative;z-index:4;pointer-events:none;padding:0 40px}
+    .step{min-height:100vh;display:flex;align-items:center;justify-content:flex-end}
+    .step:last-child{min-height:120vh}
+    .card{pointer-events:auto;width:430px;max-width:100%;background:rgba(18,19,26,.95);border:1px solid var(--line);border-radius:10px;padding:22px 24px;box-shadow:0 12px 40px rgba(0,0,0,.45);opacity:.3;transition:opacity .45s}
+    .step.active .card{opacity:1}
+    .kicker{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);font-weight:700}
+    .card h2{margin:6px 0 10px;font-size:34px;line-height:1;font-weight:900;text-transform:uppercase;letter-spacing:.02em;text-wrap:balance}
+    .card p{margin:0 0 12px;font-size:17px;line-height:1.5;color:#d9dce6}
+    .card .src{font-size:12.5px;color:var(--muted);margin:10px 0 0}
+    .card .src a{color:var(--muted)}
+    .card ol{margin:4px 0 8px;padding:0;list-style:none;columns:2;column-gap:14px;font-size:14px;line-height:1.35}
+    .card ol li{display:flex;gap:6px;align-items:baseline;break-inside:avoid;margin-bottom:5px}
+    .card ol .n{flex:none;width:18px;height:18px;border-radius:50%;background:#E0A84A;color:#111;font-size:11px;font-weight:800;display:inline-grid;place-items:center}
+    .media{margin:4px 0 12px;border-radius:6px;overflow:hidden;background:#0d0e14}
+    .media img,.media video{display:block;width:auto;max-width:100%;height:auto;max-height:min(380px,42vh);margin:0 auto}   /* small scans stay sharp instead of stretching */
+    .media .ph{aspect-ratio:4/3;display:grid;place-content:center;justify-items:center;gap:6px;text-align:center;padding:16px;
+      background:repeating-linear-gradient(135deg,#1b1d27 0 14px,#16171f 14px 28px);border:1px dashed #3a3e50;border-radius:6px;color:var(--muted)}
+    .media .ph .material-icons{font-size:34px;color:#5d6377}
+    .media .ph b{color:var(--text);font-size:14.5px;font-weight:600}
+    .media .ph small{font-size:11.5px;letter-spacing:.12em;text-transform:uppercase}
+    .media .cap{font-size:12.5px;color:var(--muted);padding:6px 2px 0}
+    .step.chapter-start .card{border-color:var(--accent)}
+    .step.chapter-start h2{font-size:42px}
+    .fact{margin:4px 0 12px;background:rgba(255,204,51,.08);border:1px solid rgba(255,204,51,.45);border-radius:8px;padding:10px 12px}
+    .fact .fact-h{display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);margin-bottom:4px}
+    .fact .fact-h .material-icons{font-size:17px}
+    .fact p{font-size:15px;margin:0 0 6px;color:var(--text)}
+    .fact .media{margin:6px 0 6px;display:inline-block;background:none}
+    .fact .media .ph{aspect-ratio:3/4;max-width:180px}
+    .fact .media img{max-width:220px}
+    .fact small{display:block;font-size:11.5px;color:var(--muted)}
+    .poster{margin:6px 0 12px;background:#f3e9d2;color:#111;border:2.5px solid #111;box-shadow:3px 3px 0 #111;border-radius:6px;padding:12px 14px;transform:rotate(-1deg)}
+    .poster .ph-h{font:24px/1 "Permanent Marker","Comic Sans MS",cursive;text-align:center;margin-bottom:8px}
+    .poster ol{list-style:none;margin:0;padding:0;columns:1}
+    .poster li{display:flex;justify-content:space-between;gap:10px;border-bottom:1.5px dashed #111;padding:5px 0;font-size:15px}
+    .poster li:last-child{border-bottom:0}
+    .poster li b{font-size:18px;font-weight:900;text-transform:uppercase;letter-spacing:.02em}
+    .poster li span{font:600 13px/1.6 var(--font);white-space:nowrap}
+    .poster .pn{font-size:12.5px;margin-top:8px;font-style:italic}
+    .setlist{margin:4px 0 12px;background:#f3ead7;color:#1a1a1a;border:2.5px solid #111;border-radius:6px;box-shadow:3px 3px 0 #111;padding:10px 14px;transform:rotate(-.4deg)}
+    .setlist .sl-h{display:flex;justify-content:space-between;align-items:baseline;border-bottom:2px solid #111;padding-bottom:4px;margin-bottom:6px;font:900 13px var(--font);letter-spacing:.18em;text-transform:uppercase}
+    .setlist .sl-h small{font:600 11px var(--font);letter-spacing:.06em;text-transform:none;color:#555}
+    .setlist ol{margin:0;padding:0;list-style:none;columns:2;column-gap:18px;counter-reset:trk}
+    .setlist li{break-inside:avoid;counter-increment:trk;font-size:13.5px;line-height:1.35;padding:2px 0;display:flex;gap:6px}
+    .setlist li::before{content:counter(trk,decimal-leading-zero);font:800 11px var(--font);color:#b3261e;padding-top:2px;flex:none}
+    .setlist li a{color:inherit;text-decoration:none}
+    .setlist li a:hover{text-decoration:underline}
+    .setlist .sl-enc{margin-top:6px;font:800 11px var(--font);letter-spacing:.14em;text-transform:uppercase;color:#b3261e}
+    .setlist .sl-f{margin-top:6px;font-size:11.5px;color:#555}
+    .setlist .sl-f a{color:#1a1a1a;font-weight:700}
+    @media (max-width:520px){.setlist ol{columns:1}}
+    .ticket{display:flex;margin:4px 0 12px;background:#ffcc33;color:#111;border:2.5px solid #111;border-radius:8px;box-shadow:3px 3px 0 #111;transform:rotate(.6deg);overflow:hidden}
+    .ticket .stub{flex:none;width:34px;border-right:2.5px dashed #111;display:grid;place-items:center}
+    .ticket .stub span{writing-mode:vertical-rl;transform:rotate(180deg);font:900 12px var(--font);letter-spacing:.2em}
+    .ticket .tk{padding:10px 12px;display:grid;gap:3px;flex:1;min-width:0}
+    .ticket .tk .t-date{font:900 20px/1 var(--font);text-transform:uppercase}
+    .ticket .tk .t-row{font-size:14px}
+    .ticket .tk .t-row b{font-weight:800}
+    .ticket .crowd{display:inline-block;background:#111;color:#ffcc33;border-radius:12px;padding:1px 9px;font-weight:800;font-size:13px;justify-self:start}
+    .listen{display:inline-flex;align-items:center;gap:6px;margin-top:4px;justify-self:start;background:#111;color:#fff;border:0;border-radius:18px;padding:5px 12px 5px 6px;font:700 13.5px var(--font);cursor:pointer;text-decoration:none}
+    .listen .material-icons{background:#e8403a;border-radius:50%;font-size:18px;width:24px;height:24px;display:grid;place-items:center}
+    .listen small{font-weight:400;color:#bbb;margin-left:2px}
+    #player{position:fixed;left:16px;bottom:16px;z-index:8;width:300px;max-width:calc(100% - 32px);background:rgba(18,19,26,.97);border:2px solid #111;box-shadow:3px 3px 0 #111;border-radius:10px;overflow:hidden}
+    #player .p-bar{display:flex;align-items:center;gap:8px;padding:6px 8px;font-size:13px}
+    #player .p-bar b{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    #player button{background:none;border:0;color:var(--text);cursor:pointer;padding:2px}
+    #player .p-frame{aspect-ratio:16/9;background:#000}
+    #player .p-frame iframe, #player .p-frame > div{width:100%;height:100%;border:0;display:block}
+    #soundtrack{position:fixed;top:16px;right:190px;z-index:6}
+    body:not(.story) #soundtrack{display:none}
+    .card ol li.unplaced{opacity:.6}
+    .card ol li.unplaced .n{background:transparent !important;border:1.5px dashed var(--muted);color:var(--muted)}
+    .loc-unknown{display:block;font-size:11.5px;color:var(--muted);font-style:italic}
+    .voice{margin:6px 0 12px;padding:14px 16px 12px 44px;position:relative;background:#f3e9d2;color:#1b1b1b;border:2.5px solid #111;border-radius:6px;box-shadow:3px 3px 0 #111;transform:rotate(-.6deg)}
+    .voice::before{content:"“";position:absolute;left:10px;top:-6px;font:900 64px/1 Georgia,serif;color:#e8403a}
+    .voice p{margin:0 0 8px;font:italic 17px/1.5 Georgia,"Times New Roman",serif;color:#1b1b1b}
+    .voice .who{font:800 12px var(--font);letter-spacing:.12em;text-transform:uppercase;color:#6b4600}
+    .voice .who span{display:block;font-weight:400;letter-spacing:0;text-transform:none;font-size:12px;color:#555;margin-top:2px}
+    .card .tbd{font-style:italic;color:var(--muted);font-size:14.5px;border-left:3px solid var(--line);padding-left:10px}
+    #chapters-nav{position:fixed;top:92px;left:16px;z-index:5;display:flex;flex-direction:column;gap:4px}
+    #chapters-nav a{display:flex;align-items:center;gap:8px;text-decoration:none;color:var(--muted);font-size:12.5px;font-weight:600;letter-spacing:.04em}
+    #chapters-nav a .dot{width:22px;height:22px;border-radius:50%;border:1px solid var(--line);background:rgba(18,19,26,.9);display:grid;place-items:center;font-size:11px;color:var(--text)}
+    #chapters-nav a .lbl{opacity:0;transition:opacity .2s;background:rgba(18,19,26,.92);padding:2px 8px;border-radius:4px;white-space:nowrap}
+    #chapters-nav a:hover .lbl,#chapters-nav a:focus-visible .lbl,#chapters-nav a.on .lbl{opacity:1}
+    #chapters-nav a.on .dot{background:var(--accent);color:#111;border-color:var(--accent)}
+    body:not(.story) #chapters-nav{display:none}
+    .step.hero{justify-content:center;text-align:center}
+    .step.hero .card{width:640px;background:rgba(12,13,18,.82);padding:34px 30px}
+    .step.hero h1{margin:4px 0 12px;font-size:clamp(46px,9vw,88px);line-height:.92;font-weight:900;letter-spacing:.02em;text-transform:uppercase}
+    .step.hero h1 span{color:var(--accent)}
+    .cue{margin-top:18px;font-size:13px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+    .cue .material-icons{display:block;margin:6px auto 0;animation:bob 1.6s ease-in-out infinite}
+    @keyframes bob{50%{transform:translateY(6px)}}
+    .btn{font:inherit;font-size:14px;font-weight:700;background:var(--accent);color:#111;border:0;border-radius:6px;padding:9px 14px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+    .btn .material-icons{font-size:18px}
+    .btn:focus-visible{outline:2px solid #fff;outline-offset:2px}
+    #to-explore{position:fixed;top:16px;right:16px;z-index:6;background:rgba(18,19,26,.92);color:var(--text);border:1px solid var(--line)}
+    #back-story{margin-top:10px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);font-size:13px;padding:6px 10px}
+
+    /* visitors see only the viewing controls; open the page with #edit for the editing tools */
+    body:not(.editor) .editor-only{display:none!important}
+    body:not(.editor) .pin.approx{border-style:solid;border-color:#111}
+
+    @media (max-width:720px){
+      #panel{top:auto;left:8px;right:8px;bottom:8px;width:auto;height:44vh}
+      #top-left-info{top:8px;left:8px}
+      #top-left-info > div{min-width:0;padding:6px 10px}
+      .info-value{font-size:20px}
+      #map-legend{display:none}
+    }
+    @media (max-width:720px){
+      #story{padding:0 10px}
+      .step{align-items:flex-end;padding-bottom:6vh}
+      .step.hero{align-items:center;padding-bottom:0}
+      .card{width:100%;padding:16px 18px}
+      .card h2{font-size:27px}
+      .card p{font-size:16px}
+      .card .media .ph{aspect-ratio:16/9}
+      #to-explore{top:8px;right:8px;font-size:13px;padding:7px 10px}
+      #soundtrack{top:52px;right:8px;font-size:13px;padding:7px 10px}
+      #player{left:8px;bottom:8px;width:240px}
+      #chapters-nav{top:auto;bottom:auto;top:74px;left:8px;flex-direction:row;gap:3px}
+      #chapters-nav a .lbl{display:none}
+    }
+    /* ================= vinyl feel ================= */
+    /* a record: label in the middle, fine grooves, and a light sheen */
+    :root{--vinyl-bg:radial-gradient(circle, var(--label, var(--accent)) 0 29%, #0b0b0b 29.5% 31%, transparent 31.5%),
+        repeating-radial-gradient(circle, #141414 0 1.5px, #1f1f1f 1.5px 2.6px), #111}
+    .vinyl, #top-left-info > .vinyl{border-radius:50%;position:relative;flex:none;padding:0;min-width:0;border:0;background:var(--vinyl-bg);
+      box-shadow:0 0 0 2px #000, 0 6px 18px rgba(0,0,0,.55)}
+    .vinyl::before{content:"";position:absolute;inset:0;border-radius:50%;
+      background:conic-gradient(from 20deg, transparent 0 12%, rgba(255,255,255,.10) 16%, transparent 22% 58%, rgba(255,255,255,.08) 62%, transparent 68%)}
+    .vinyl::after{content:"";position:absolute;left:50%;top:50%;width:7%;height:7%;transform:translate(-50%,-50%);border-radius:50%;background:#0b0c10}
+    .vinyl .lbl{position:absolute;inset:0;display:grid;place-items:center;font:900 13px/1 var(--font);color:#111;letter-spacing:.04em;text-align:center}
+    /* label text sits above and below the spindle hole, never under it */
+    .vinyl .lbl .t{position:absolute;left:0;right:0;top:40%;transform:translateY(-100%);text-align:center}
+    .vinyl .lbl b{position:absolute;left:0;right:0;top:55%;text-align:center}
+    #deck .lbl .t{font-size:8px;top:42%}
+    #deck .lbl b{font-size:13px;top:54%}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    /* the deck: a small record in the top-left that turns as you scroll */
+    #top-left-info > #deck{width:58px;height:58px;align-self:center}
+    body:not(.story) #deck{display:none}
+
+    /* chapter menu as an LP track list */
+    #chapters-nav .side{font:800 10px var(--font);letter-spacing:.24em;color:var(--accent);margin:6px 0 2px 2px}
+    #chapters-nav a .dot{width:24px;height:24px;border:0;color:#111;font-weight:900;
+      font-size:11px;background:radial-gradient(circle, #e8dfc6 0 44%, #0b0b0b 45% 48%, transparent 49%), repeating-radial-gradient(circle, #141414 0 1.2px, #242424 1.2px 2.2px);
+      box-shadow:0 0 0 1.5px #000}
+    #chapters-nav a.on .dot{background:radial-gradient(circle, var(--accent) 0 44%, #0b0b0b 45% 48%, transparent 49%), repeating-radial-gradient(circle, #141414 0 1.2px, #242424 1.2px 2.2px);
+      animation:spin 1.8s linear infinite}
+
+    /* chapter openers: the card is the sleeve, a record slides out of it */
+    .sleeve{position:relative;width:430px;max-width:100%}
+    .sleeve .card{position:relative;z-index:1;width:100%}
+    .sleeve .vinyl{position:absolute;z-index:0;width:190px;height:190px;top:-72px;right:26px;transition:transform 1.1s cubic-bezier(.2,.8,.2,1)}
+    .sleeve .vinyl .lbl{font-size:12px}
+    .sleeve .vinyl .lbl b{font-size:28px;line-height:1}
+    .step.active .sleeve .vinyl{transform:translateY(-70px) rotate(360deg)}
+
+    /* title screen: a big record turning behind the name */
+    .step.hero .hero-vinyl{position:absolute;width:min(560px,86vw);height:min(560px,86vw);left:50%;top:50%;margin:calc(min(560px,86vw) / -2) 0 0 calc(min(560px,86vw) / -2);
+      animation:spin 14s linear infinite;opacity:.5;z-index:0;pointer-events:none}
+    .step.hero{position:relative}
+    .step.hero .card{position:relative;z-index:1}
+
+    /* a record in a story card that actually spins (e.g. a 78 rpm label) */
+    .media.spin{background:none;display:grid;place-items:center;padding:6px 0}
+    .media.spin img{width:min(300px,70%);height:auto;aspect-ratio:1;object-fit:cover;border-radius:50%;box-shadow:0 0 0 3px #000,0 10px 26px rgba(0,0,0,.6);animation:spin 3.2s linear infinite;max-height:none}
+
+    /* old paper and film: faint grain and dust over everything */
+    body::after{content:"";position:fixed;inset:-50%;z-index:30;pointer-events:none;opacity:.10;mix-blend-mode:overlay;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      animation:grain 1.2s steps(4) infinite}
+    @keyframes grain{25%{transform:translate(-3%,2%)}50%{transform:translate(2%,-3%)}75%{transform:translate(-2%,-1%)}}
+    #dust{position:fixed;inset:0;z-index:29;pointer-events:none;opacity:.35;
+      background-image:radial-gradient(1.2px 1.2px at 12% 18%, #fff 50%, transparent 51%),radial-gradient(1px 1px at 78% 32%, #fff 50%, transparent 51%),
+        radial-gradient(1.5px 1.5px at 41% 71%, #fff 50%, transparent 51%),radial-gradient(1px 1px at 88% 83%, #fff 50%, transparent 51%),
+        radial-gradient(1px 1px at 23% 56%, #fff 50%, transparent 51%),radial-gradient(1.3px 1.3px at 64% 9%, #fff 50%, transparent 51%)}
+
+    @media (max-width:720px){
+      #chapters-nav .side{display:none}
+      .sleeve{width:100%}
+      .sleeve .vinyl{width:130px;height:130px;top:-48px;right:18px}
+      .step.active .sleeve .vinyl{transform:translateY(-50px) rotate(360deg)}
+      #deck{display:none}
+      .sleeve .vinyl .lbl .t{font-size:8.5px}
+      .sleeve .vinyl .lbl b{font-size:20px}
+    }
+    @media (prefers-reduced-motion:reduce){.pin,.card,#scrim{transition:none}.pin.pop,.cue .material-icons{animation:none}
+      .vinyl, .hero-vinyl, #chapters-nav a.on .dot, .media.spin img, body::after{animation:none!important;transition:none!important}}
+  </style>
+</head>
+<body>
+  <!-- Top Left Info Grid -->
+  <div id="dust" aria-hidden="true"></div>
+  <div id="top-left-info">
+    <div id="deck" class="vinyl" aria-hidden="true"><div class="lbl"><span class="t">CH</span><b id="deck-ch">–</b></div></div>
+    <div id="year-timeline">
+      <div class="info-label">Year</div>
+      <div class="info-value" id="year-value">1920–Today</div>
+    </div>
+    <div id="places-display">
+      <div class="info-label">Places</div>
+      <div class="info-value" id="places-value">0</div>
+    </div>
+  </div>
+
+  <div id="edit-banner" hidden>Fix pins is on: drag any pin to its correct spot</div>
+  <div id="toast" hidden></div>
+  <div id="lightbox" hidden role="dialog" aria-label="Photo viewer">
+    <button type="button" class="lb-close" aria-label="Close"><span class="material-icons">close</span></button>
+    <button type="button" class="lb-prev" aria-label="Previous photo"><span class="material-icons">chevron_left</span></button>
+    <img alt="">
+    <div class="lb-cap"></div>
+    <button type="button" class="lb-next" aria-label="Next photo"><span class="material-icons">chevron_right</span></button>
+  </div>
+
+  <!-- Map container - fixed position -->
+  <div id="map"></div>
+  <div id="scrim"></div>
+
+  <!-- Story content container - scrollable; chapters are built from STORY below -->
+  <div id="story"></div>
+  <nav id="chapters-nav" aria-label="Chapters"></nav>
+  <button type="button" class="btn" id="soundtrack" hidden aria-pressed="false"><span class="material-icons">volume_off</span>Soundtrack: off</button>
+  <div id="player" hidden>
+    <div class="p-bar"><span class="material-icons" aria-hidden="true">music_note</span><b id="p-title"></b>
+      <button type="button" id="p-close" aria-label="Stop and close player"><span class="material-icons">close</span></button></div>
+    <div class="p-frame"><div id="yt"></div></div>
+  </div>
+  <button type="button" class="btn" id="to-explore"><span class="material-icons">explore</span>Explore the map</button>
+
+  <!-- Layers + places panel -->
+  <aside id="panel" aria-label="Map layers and places">
+    <header>
+      <h1>Rock<span>umentary</span></h1>
+      <p class="sub">Bangalore's rock and roll map, 1920 to today</p>
+      <button type="button" class="btn" id="back-story"><span class="material-icons">auto_stories</span>Back to the story</button>
+    </header>
+    <div id="layers" role="list"></div>
+    <div id="places"></div>
+    <div id="historic">
+      <label class="h-title"><input type="checkbox" id="hist-on" checked> 1960s Bangalore map</label>
+      <div class="h-row editor-only">Opacity <input type="range" id="hist-opacity" min="0" max="100" value="70" aria-label="1960s map opacity"> <span id="hist-opacity-val">70%</span></div>
+      <div class="h-row editor-only">
+        <label class="file"><span class="material-icons">upload_file</span>Load map image<input type="file" id="hist-file" accept="image/*" hidden></label>
+        <button type="button" id="hist-align"><span class="material-icons">open_with</span>Align</button>
+        <button type="button" id="hist-reset"><span class="material-icons">restart_alt</span>Reset</button>
+      </div>
+      <div id="hist-tools" class="editor-only" hidden>
+        <div class="t-row"><span>Move</span>
+          <button type="button" data-nudge="0,-1" aria-label="Move up"><span class="material-icons">arrow_upward</span></button>
+          <button type="button" data-nudge="0,1" aria-label="Move down"><span class="material-icons">arrow_downward</span></button>
+          <button type="button" data-nudge="-1,0" aria-label="Move left"><span class="material-icons">arrow_back</span></button>
+          <button type="button" data-nudge="1,0" aria-label="Move right"><span class="material-icons">arrow_forward</span></button>
+        </div>
+        <div class="t-row"><span>Size</span>
+          <button type="button" data-scale="0.98" aria-label="Smaller"><span class="material-icons">remove</span></button>
+          <button type="button" data-scale="1.02" aria-label="Bigger"><span class="material-icons">add</span></button>
+        </div>
+        <div class="t-row"><span>Rotate</span>
+          <button type="button" data-rotate="-1" aria-label="Rotate left"><span class="material-icons">rotate_left</span></button>
+          <button type="button" data-rotate="1" aria-label="Rotate right"><span class="material-icons">rotate_right</span></button>
+        </div>
+        <label class="t-row"><input type="checkbox" id="hist-lock" checked> Keep proportions (corners resize evenly, no skew)</label>
+        <label class="t-row"><input type="checkbox" id="hist-fine"> Fine steps (for small adjustments)</label>
+        <div class="keys">Or drag the round handle in the middle to move the whole map. Keyboard: arrow keys move · + / − resize · [ / ] rotate · hold Shift for fine steps.</div>
+      </div>
+      <div class="hint editor-only" id="hist-hint"></div>
+    </div>
+    <div id="toolbar">
+      <button type="button" id="btn-all"><span class="material-icons">zoom_out_map</span>Show all</button>
+      <button type="button" id="btn-edit" class="editor-only"><span class="material-icons">edit_location_alt</span>Fix pins</button>
+      <button type="button" id="btn-copy" class="editor-only"><span class="material-icons">content_copy</span>Copy data</button>
+      <select id="basemap" class="editor-only" aria-label="Basemap">
+        <option value="illustrated">Illustrated map</option>
+        <option value="dark">Dark map</option>
+        <option value="light">Light map</option>
+        <option value="streets">Streets map</option>
+      </select>
+    </div>
+  </aside>
+
+  <!-- Legend -->
+  <div id="map-legend"><div class="title">Legend</div><div id="legend-rows"></div>
+    <div class="row editor-only" style="margin-top:6px;color:var(--muted)"><span class="pin approx" style="width:16px;height:16px;background:#666"></span>Dashed = approximate location</div>
+  </div>
+
+<script>
+/* =====================================================================
+   DATA: layers come from the Rockumentary storyboard (Maps A–D) plus
+   the research notes (layer E). approx:true = my best estimate, please
+   check it. lat:null = location unknown, use "Fix pins" → "Place".
+   ===================================================================== */
+const LAYERS = [
+  { id:"dance",   name:"British Dance Halls, Theatres, Clubs & Pubs", era:"1920s–40s", color:"#E0A84A",
+    source:"Storyboard p.3–7 · scroll.in" },
+  { id:"schools", name:"Schools & Colleges the Bands Came From",       era:"1960s–70s", color:"#4FC3F7",
+    source:"Storyboard p.39" },
+  { id:"hangouts",name:"Youth Hangouts",                              era:"1970s–80s", color:"#F06292",
+    source:"Storyboard p.40" },
+  { id:"cabaret", name:"Cabaret Bars",                                era:"1970s",     color:"#B388FF",
+    source:"Storyboard p.47 · Image courtesy Shiva Prasad Shetty" },
+  { id:"venues",  name:"Rock Venues & Big Concerts",                  era:"1989–Today",color:"#FF5A4E",
+    source:"Research notes" }
+];
+
+const PLACES = [
+  // ---- Map A: British Dance Halls, Theatres, Clubs and Pubs ----
+  { layer:"dance", n:1,  name:"Victoria Hotel", now:"Now Bangalore Central", area:"Residency Rd", lat:12.9705, lng:77.6092, approx:true,
+    media:[{ src:"media/images/victoria-hotel.jpg", caption:"The Victoria Hotel, with its sign above the porch", credit:"Credit to confirm" },
+           { src:"media/images/victoria-hotel-paul-fernandes.jpg", caption:"“Creative discussion over brunch at Victoria Hotel”", credit:"Artwork: Paul Fernandes" }] },
+  { layer:"dance", n:2,  name:"Town Hall", area:"JC Rd", lat:12.9637, lng:77.5858, approx:true,
+    note:"The Saraswathi Orchestra played here in 1943: a 25-member Bangalore band mixing Hindustani, Carnatic and jazz.",
+    media:[{ src:"media/images/saraswathi-orchestra-1950s.jpg", caption:"Vintage photo of the Sarasavani Orchestra, 1950s Bangalore", credit:"Pic: © Shashi Gundurao" }] },
+  { layer:"dance", n:3,  name:"The Old Bull and Bush", area:"MG Rd, possibly next to the Nilgiris", lat:12.9750, lng:77.6066, approx:true,
+    note:"Remembered as somewhere on MG Road, maybe next to the Nilgiris (exact spot to confirm).",
+    media:[{ src:"media/images/old-bull-and-bush-bullards.jpg", caption:"Bullards' Beers enamel sign (artwork signed A. J. Munnings), shown for The Old Bull and Bush", credit:"Credit to confirm" }] },
+  { layer:"dance", n:4,  name:"Liberty Theatre", now:"Site of Almas Centre, near the old Spencer building", area:"87, MG Rd", lat:12.9747, lng:77.6104, approx:true,
+    note:"Stood at 87, Mahatma Gandhi Road, near the Spencer building (now Almas Centre).",
+    media:[{ src:"media/images/crystal-picture-palace.jpg", caption:"The “Crystal Picture Palace” beside Spencer & Co., apparently the same ornate building before it was the Liberty (to confirm)", credit:"Credit to confirm" }] },
+  { layer:"dance", n:5,  name:"Plaza Theatre", area:"MG Rd", lat:12.9756, lng:77.6088, approx:true,
+    note:"Later a cinema where Bangalore's rock fans watched the Woodstock film.", src:"Kirtana Kumar",
+    media:[{ src:"media/images/plaza-theatre-1940.jpg", caption:"Plaza Theatre, MG Road, 1940, with Standard Optical on the ground floor", credit:"Pic: IBCC Digital Archive" }] },
+  { layer:"dance", n:6,  name:"Funnells Dance Bar", now:"Now the Deccan Herald building", area:"MG Rd", lat:12.9759, lng:77.6043, approx:true,
+    note:"A dance hall frequented by soldiers during the World War. It shut in 1947 to make way for The Printers (Mysore) Pvt Ltd, publisher of the Deccan Herald.",
+    src:"The CityTab, sourced by NJ Ravichander",
+    media:[{ src:"media/images/funnells-dance-hall.jpg", caption:"Funnells, the building that became the Deccan Herald's home", credit:"Pic: The CityTab, sourced by NJ Ravichander" },
+           { src:"media/images/funnells-mg-road-street.jpg", caption:"MG Road: Funnells (sign on the right-hand building) next door to Higginbothams, “Established Eighteen Forty Four”", credit:"Pic: IBCC Digital Archive" }] },
+  { layer:"dance", n:7,  name:"Rex Theatre", area:"Brigade Rd", lat:12.9699, lng:77.6076, approx:true,
+    media:[{ src:"media/images/rex-theatre.jpg", caption:"Rex Theatre, with “Jungle Book” on the hoarding", credit:"Pic: Bygone Bangalore (Facebook), via The News Minute" }] },
+  { layer:"dance", n:8,  name:"Bowring Institute", area:"St Marks Rd", lat:12.9716, lng:77.6008, approx:true,
+    note:"House band: tenor saxophonist Bruce Gabriel and his big band (remembered by Silu Jamal).", src:"The Hindu: The sound of music in Bengaluru",
+    media:[{ src:"media/images/bowring-institute.jpg", caption:"“The Bowring Institute, Bangalore”, an old picture postcard", credit:"Postcard publisher printed on the card (S. Mahadeo & Son)" }] },
+  { layer:"dance", n:9,  name:"Catholic Club", area:"Museum Rd", lat:12.9716, lng:77.6049, approx:true,
+    note:"House band: guitarist Eddie and his Rhythm Stars (remembered by Silu Jamal).", src:"The Hindu: The sound of music in Bengaluru",
+    media:[{ src:"media/images/catholic-club.jpg", caption:"The Catholic Club, Museum Road", credit:"Credit to confirm" }] },
+  { layer:"dance", n:10, name:"Opera House", area:"Brigade Rd × Residency Rd", lat:12.9709, lng:77.6072, approx:true,
+    media:[{ src:"media/images/opera-house.jpg", caption:"The Opera House, signed “New Opera”", credit:"Pic: IBCC Digital Archive" }] },
+  { layer:"dance", n:11, name:"BUS Club", now:"Now Bangalore Club", area:"Residency Rd", lat:12.9683, lng:77.6034, approx:true,
+    note:"The Devil Beats (Allan Fintzel, Romaine Hayes, Chippy Briggs, Ronnie Rikh) played here." ,
+    media:[{ src:"media/images/bus-club.jpg", caption:"The United Service Club, Bangalore (the BUS Club, today's Bangalore Club), on an old postcard", credit:"Credit to confirm" },
+            { src:"media/images/bangalore-club-ball.jpg", caption:"A ball at the club, early 1900s (date to confirm)", credit:"Source to confirm" }] },
+
+  // ---- Map B: Schools and Colleges the bands emerged from ----
+  { layer:"schools", n:1, name:"Bishop Cotton Boys' School", area:"St Marks Rd", lat:12.9672, lng:77.5992, approx:true,
+    note:"Biddu Appaiah formed The Trojans with school friends from here, including Ken Gnanakan. The members of the Hydro Carbons were Cottonians too.", src:"Kodur Swaroop, Go Your Own Way (Medium)",
+    media:[{ src:"media/images/bishop-cotton-boys-main-building.jpg", caption:"“The Main Building”, Bishop Cotton Boys' School, on an early print", credit:"Date and source to confirm" }] },
+  { layer:"schools", n:2, name:"Baldwin Girls' High School", area:"Richmond Town", lat:12.9618, lng:77.6128, approx:true },
+  { layer:"schools", n:3, name:"Bishop Cotton Girls' School", area:"St Marks Rd", lat:12.9722, lng:77.5984, approx:true },
+  { layer:"schools", n:4, name:"St. Joseph's Boys' High School", area:"Museum Rd", lat:12.9694, lng:77.6040, approx:true },
+  { layer:"schools", n:5, name:"Baldwin Boys' High School", area:"Richmond Town", lat:12.9598, lng:77.6078, approx:true },
+  { layer:"schools", n:6, name:"Cathedral High School", area:"Richmond Rd", lat:12.9652, lng:77.6012, approx:true },
+  { layer:"schools", n:7, name:"Sacred Heart Girls' High School", area:"Residency Rd", lat:12.9663, lng:77.6106, approx:true },
+  { layer:"schools", n:8, name:"St. Germain's High School", area:"Cooke Town area", lat:12.9962, lng:77.6190, approx:true },
+  { layer:"schools", n:9, name:"St. Antony's High School", area:"Location needed", lat:null, lng:null },
+
+  // ---- Map C: Youth hangouts ----
+  { layer:"hangouts", n:1,  name:"Koshy's", now:"Its Jewel Box had a band every Sunday", area:"St Marks Rd", lat:12.9751, lng:77.6011, approx:true,
+    note:"The diner and \"the jukebox\". Musicians met here with acoustic guitars for daytime jams and music-talk over beers.", src:"The Hindu: The sound of music in Bengaluru" },
+  { layer:"hangouts", n:2,  name:"The Only Place", area:"Museum Rd", lat:12.9722, lng:77.6053, approx:true,
+    note:"Daytime acoustic jams and music-talk over beers (Sunil Abraham).", src:"The Hindu: The sound of music in Bengaluru" },
+  { layer:"hangouts", n:3,  name:"Africana", area:"Location needed", lat:null, lng:null, note:"Also a cabaret bar." },
+  { layer:"hangouts", n:4,  name:"Chin Lung", area:"Bottom of Brigade Rd, by St Patrick's Complex", lat:12.9702, lng:77.6080, approx:true,
+    note:"Before the rock years, pianists like Albert Thorn and local outfits played standard jazz and swing here. 1970s: a tiny, popular restaurant that became a concert venue. Run by Kochil (of the band BarberShop Harmony); home to The Spartans, The Void and Human Bondage. Those who couldn't afford it stood outside with beers, listening through the open windows. Still pouring pints since 1964.", src:"The Hindu: The sound of music in Bengaluru",
+    media:[{ src:"media/images/chin-lung.jpg", caption:"“But Bangalore never forgot Chin Lung. Since 1964, we've been pouring pints and serving plates at prices that still make sense.”", credit:"Chin Lung's own promotion; date to confirm" }] },
+  { layer:"hangouts", n:5,  name:"Gaylord", area:"MG Rd", lat:12.9754, lng:77.6078, approx:true },
+  { layer:"hangouts", n:6,  name:"Hotel Stay Longer", now:"Later renamed the Ramada", area:"Shivajinagar", lat:12.9862, lng:77.6049, approx:true,
+    note:"Its disco, the Golden Nugget, run by the Jacobi family on the top floor next to the restaurant, was the most happening night spot in town. The Devil Beats played there often, and Dick, singer with the Silencers, was the star attraction.", src:"Rose Maryann Peck (India Psychedelic article); Facebook post on the Missing Links" },
+  { layer:"hangouts", n:7,  name:"Kwality's", area:"Brigade Rd", lat:12.9744, lng:77.6071, approx:true,
+    note:"Had a band every Sunday.", src:"The Hindu: The sound of music in Bengaluru" },
+  { layer:"hangouts", n:8,  name:"Pecos", area:"Rest House Rd, off Brigade Rd", lat:12.9737, lng:77.6083, approx:true,
+    note:"Opened in 1989 by Collin Timms. By 1988–89 it and Take 5 had become the city's retro-rock destinations.",
+    media:[{ src:"media/images/pecos-trance-ad.jpg", caption:"Pecos ad: “Tull instead of trance. And Houses of the Holy instead of house.”", credit:"Source to confirm" },
+            { src:"media/images/pecos-interior.jpg", caption:"Inside Pecos: tinsel, fairy lights, and posters of The Who and Miles Davis", credit:"Date and photographer to confirm" }] },
+  { layer:"hangouts", n:9,  name:"The Pub", now:"Renamed NASA", area:"Church St", lat:12.9753, lng:77.6056, approx:true },
+  { layer:"hangouts", n:10, name:"Black Cadillac", area:"Location needed", lat:null, lng:null,
+    note:"A basement watering hole; closed in the 2000s under new fire and safety rules for basements.", src:"The Hindu: The sound of music in Bengaluru" },
+  { layer:"hangouts", n:11, name:"Ramada", now:"Formerly Hotel Stay Longer", area:"Shivajinagar", lat:12.9859, lng:77.6055, approx:true,
+    note:"Hotel Stay Longer was later rechristened the Ramada, so this is probably the same place as pin 6.", src:"Article on Sidharth Bhatia's India Psychedelic (publication to confirm)" },
+
+  // ---- Map D: Cabaret bars ----
+  { layer:"cabaret", n:1, name:"Boscos", area:"Location needed", lat:null, lng:null },
+  { layer:"cabaret", n:2, name:"3 Aces", now:"Now Spencer's", area:"MG Rd", lat:12.9750, lng:77.6112, approx:true,
+    note:"Three Aces on South Parade (today's MG Road) was one of the most popular restaurants of the 1960s, where pianists like Albert Thorn and local outfits played standard jazz and swing; The Trojans played here. Later a nightclub with afternoon rock jam sessions and evening cabarets, where Pam Crain sang.", src:"The Hindu; Kodur Swaroop (Medium)",
+    media:[{ src:"media/images/three-aces-dining-room.jpg", caption:"The 3 Aces dining room: candlelit tables, patterned wallpaper and a dance floor", credit:"Date and source to confirm" },
+           { src:"media/images/paul-fernandes-cabaret-3-aces.jpg", caption:"“Cabaret at 3 Aces: Live bands and dancing the night away”", credit:"Painting: Paul Fernandes" }] },
+  { layer:"cabaret", n:3, name:"Africana", area:"Location needed", lat:null, lng:null },
+  { layer:"cabaret", n:4, name:"Omar Khayyam", area:"Location needed", lat:null, lng:null },
+
+  // ---- Layer E: Rock venues & concerts (research notes) ----
+  { layer:"venues", n:1, name:"Palace Grounds", area:"Jayamahal", lat:12.9985, lng:77.5921, approx:true,
+    note:"Deep Purple (1 April 2001, TAAQ opening), Roger Waters 2002, the Rolling Stones in the rain 2003, Iron Maiden 2007 (about 38,000 fans), Aerosmith 2007, Metallica 2011.",
+    media:[ { src:"media/images/valeri-leontiev-ticket-1989.jpg", caption:"Ticket: CBS presents Valeri Leontiev, 13 May 1989, with Remo, Rock Machine, Joe Alvares and Sharon Prabhakar", credit:"Courtesy: Adarsh NC" } ] },
+  { layer:"venues", n:2, name:"Hard Rock Cafe", now:"Former HMV store / Bible Society building", area:"St Marks Rd", lat:12.9735, lng:77.6013, approx:true,
+    note:"India's first Hard Rock Cafe opened here in 2007, in the 1912 Bible Society building, once “Blighty's Tea Room”.", src:"Homegrown: How Bengaluru's iconic Bible Society building transformed into a center stage for rock music",
+    media:[{ src:"media/images/blighty-tea-rooms.jpg", caption:"The same building as “The Blighty Tea Rooms”, on an early postcard", credit:"Via Team-BHP; copyright respective owners" }] },
+  { layer:"venues", n:3, name:"Lido Theatre", area:"Ulsoor", lat:12.9737, lng:77.6199, approx:true,
+    note:"Home of Sonorific Fantastic, a two-day show billed as a “kinky, freaky musical blow out” to showcase young talent, with bands from Trichy, Mangalore and Madras. A young Usha Uthup (then Usha Iyer) sang pop songs here dressed in a sari.", src:"The News Minute: Once upon a time in Bangalore" },
+  { layer:"venues", n:4, name:"Samsa, behind Ravindra Kalakshetra", area:"JC Rd", lat:12.9624, lng:77.5871, approx:true,
+    note:"Around 1996 musicians Gopal and Geetha Navale and others held the first all-night Freedom Jam here on the eve of Independence Day, followed by Sunday jams on the first Sunday of every month. Freedom Jam later moved to the Navales' farm, 30 km out, and then to The Club on Mysore Road, where it ran until 2010.", src:"The Hindu: The sound of music in Bengaluru" },
+  { layer:"venues", n:5, name:"NLSIU: Strawberry Fields", area:"Nagarbhavi", lat:12.9510, lng:77.5188, approx:true,
+    note:"College rock festival since 1997, a launch pad for TAAQ, Motherjane, Kryptos, Demonic Resurrection and Bhayanak Maut, with crowds of 8,000 and more." },
+  { layer:"venues", n:6, name:"bFlat", area:"Indiranagar", lat:12.9718, lng:77.6412, approx:true,
+    note:"Born in 2009 as a dedicated live-music space, after Take 5's Indiranagar gigs (till 2008) drew a big response. Its founders wanted Bengalureans to be able to watch a concert over a beer, not only in an auditorium. Closed in 2018.", src:"The Hindu: The sound of music in Bengaluru",
+    media:[{ src:"media/images/bflat-interior.jpg", caption:"Inside bFlat: a wall of LP sleeves (Paul Simon, Duke Ellington, Art Blakey, Deep Purple) beside the stage", credit:"bFlat, Indiranagar. Date and photographer to confirm" }] },
+  { layer:"venues", n:7, name:"The Humming Tree", area:"Indiranagar", lat:12.9786, lng:77.6408, approx:true,
+    note:"Opened June 2013; proprietor Nikhil Baruah quickly carved out a niche for it.", src:"The Hindu: The sound of music in Bengaluru",
+    media:[{ src:"media/images/humming-tree-stage.jpg", caption:"A band with violin on the Humming Tree stage, under purple lights", credit:"Band, date and photographer to confirm" },
+            { src:"media/images/humming-tree-empty-stage.jpg", caption:"Before the show: The Jois Project's kit set up on the Humming Tree stage", credit:"Date and photographer to confirm" }] },
+  { layer:"venues", n:8, name:"Indian Music Experience", area:"JP Nagar", lat:12.8948, lng:77.5853, approx:true,
+    note:"India's first interactive music museum, opened 27 July 2019, with an indie-rock gallery alongside walls of instruments." },
+  { layer:"venues", n:9, name:"Take 5", area:"Race Course Rd", lat:12.9858, lng:77.5868, approx:true,
+    note:"A retro-rock destination by 1988–89. International jazz bands came after the Delhi and Bombay Jazz Yatras, played on the rocks at Chitrakala Parishath, then stayed for late-night, shutters-down concerts. It later opened in Indiranagar too.", src:"The Hindu: The sound of music in Bengaluru" },
+  { layer:"venues", n:10, name:"Cubbon Park Bandstand", area:"Cubbon Park", lat:12.9748, lng:77.5947, approx:true,
+    note:"Acoustic performances. Bengalureans even held their own Woodstock tribute in Cubbon Park, until the authorities stopped the outdoor gigs as 'damaging our culture'.", src:"The Hindu: The sound of music in Bengaluru" },
+  { layer:"venues", n:11, name:"Bangalore Music Strip", area:"Behind the Queen Victoria statue, Cubbon Park", lat:12.9762, lng:77.5993, approx:true,
+    note:"1983–86: Sunbeam Motha's non-profit stage, first on an embankment on MG Road, then here. The Chronic Blues Band, Stylus, Hot Rain and Bharat Mata Nach Kud Baja (Mother India Jive Band) played; power came from a car battery rigged by Venkatachalam.", src:"The Hindu; Kirtana Kumar",
+    media:[{ src:"media/images/music-strip-cubbon-park.jpg", caption:"Playing the Music Strip in Cubbon Park", credit:"PC: Venkatachalam, via the Bangalore Rock and Blues WhatsApp group" },
+            { src:"media/images/music-strip-banner.jpg", caption:"Under the “Bangalore Music Strip” banner: a band plays in the park, a lantern hanging from the tree", credit:"1980s. Band, date and photographer to confirm" },
+            { src:"media/images/music-strip-park-3.jpg", caption:"Four-piece under the trees, with the same hanging lantern", credit:"1980s. Band, date and photographer to confirm" },
+            { src:"media/images/music-strip-park-2.jpg", caption:"A band plays under the gulmohar trees", credit:"1980s. Band, date and photographer to confirm" }] },
+  { layer:"venues", n:12, name:"Bal Bhavan", area:"Cubbon Park", lat:12.9736, lng:77.5952, approx:true,
+    note:"Held regular concerts.", src:"The Hindu: The sound of music in Bengaluru" },
+  { layer:"venues", n:13, name:"Opus", area:"Palace Rd", lat:12.9880, lng:77.5868, approx:true,
+    note:"2000s: run by Carlton and Gina Braganza. A hangout for hundreds, with concerts, and it introduced karaoke to Bangalore; its Kroaknights were legendary.", src:"The Hindu: The sound of music in Bengaluru" },
+  { layer:"venues", n:14, name:"Mahatma Gandhi statue", area:"MG Rd", lat:12.9764, lng:77.6012, approx:true,
+    note:"2005: the first 'live music ban'. Police banned live gigs to curb dance bars, and musicians and well-wishers protested here. Live gigs slowly returned.", src:"The Hindu: The sound of music in Bengaluru" },
+  { layer:"venues", n:15, name:"Hotel Bangalore International (HBI)", area:"Location needed", lat:null, lng:null,
+    note:"Vera and Sandy Holland sang here.", src:"The Hindu: The sound of music in Bengaluru" },
+  { layer:"venues", n:16, name:"Napoli", area:"Location needed", lat:null, lng:null,
+    note:"A “floor show” cabaret, with 3 Aces and Talk of the Town. Sandy (Sandra) Burby performed here.", src:"The Hindu: The sound of music in Bengaluru; Facebook post on the Missing Links" },
+  { layer:"venues", n:17, name:"Tycoons", area:"Location needed", lat:null, lng:null,
+    note:"Closed in the 2000s under fire and safety rules for basements.", src:"The Hindu: The sound of music in Bengaluru" },
+  { layer:"venues", n:18, name:"Take 5 (Indiranagar)", area:"Indiranagar · location needed", lat:null, lng:null,
+    note:"Opened by Sunil Shetty and a friend, Viraj, with monthly jazz and blues concerts. Gigs ran till 2008.", src:"The Hindu: The sound of music in Bengaluru" },
+  { layer:"venues", n:19, name:"Vapour", area:"Location needed", lat:null, lng:null, note:"One of the 2010s live-music venues.", src:"The Hindu: The sound of music in Bengaluru" },
+  { layer:"venues", n:20, name:"Loft", area:"Location needed", lat:null, lng:null, note:"One of the 2010s live-music venues.", src:"The Hindu: The sound of music in Bengaluru" },
+  { layer:"venues", n:21, name:"Monkey Bar", area:"Location needed", lat:null, lng:null, note:"One of the 2010s live-music venues.", src:"The Hindu: The sound of music in Bengaluru" },
+  { layer:"venues", n:22, name:"Blue Frog", area:"Location needed", lat:null, lng:null, note:"One of the 2010s live-music venues.", src:"The Hindu: The sound of music in Bengaluru" },
+  { layer:"venues", n:23, name:"Glass House, Lalbagh", area:"Lalbagh", lat:12.9507, lng:77.5848, approx:true,
+    note:"Duke Ellington and his Orchestra played here on Thursday, 3 October 1963, as a cultural presentation of the US Department of State. Tickets cost Rs 10, Rs 5 (reserved) and Rs 2 (unreserved).",
+    src:"Concert poster, 1963",
+    media:[{ src:"media/images/duke-ellington-glass-house-1963.jpg", caption:"Poster: Duke Ellington and his famous Orchestra, Glass House, Lal Bagh, 3 October 1963", credit:"Concert poster, 1963" }] },
+  { layer:"venues", n:24, name:"Graceland", area:"Kanakapura Rd, near Ravugodlu", lat:12.8005, lng:77.5050, approx:true,
+    note:"Venue of “After Midnight”, a poolside “Rock Happening” on 31 May 1997 with Lucidreams, Aftermath, Jam-tree, Anita Saran and more. 22.3 km from the Khodays factory, according to the ticket's map.",
+    src:"Ticket, 1997 (courtesy Adarsh NC)",
+    media:[{ src:"media/images/after-midnight-graceland-1997.jpg", caption:"Ticket and map: “After Midnight”, Graceland, 31 May 1997", credit:"Courtesy: Adarsh NC" }] },
+  { layer:"venues", n:25, name:"Bhartiya City", area:"Thanisandra Main Rd, Chokkanahalli", lat:13.0745, lng:77.6260, approx:true,
+    note:"Guns N' Roses played here on 7 December 2012 (32/1, Bhartiya City, Thanisandra Main Road, Chokkanahalli, Hegde Nagar).", src:"Concert ticket" },
+];
+
+/* =====================================================================
+   HISTORIC MAP: the 1960s Bangalore map, drawn as an image over the base map.
+   Put the scan next to this file as bangalore-1960s.jpg (or use "Load map
+   image"), then use "Align" to drag its 4 corners until old roads line up.
+   corners are [lng, lat] in the order top-left, top-right, bottom-right, bottom-left.
+   ===================================================================== */
+const HISTORIC_MAP = {
+  // TODO: replace with the scan's Cloudflare R2 public link, e.g. "https://pub-xxxx.r2.dev/bangalore-1960s.jpg"
+  // (the R2 bucket needs a CORS rule allowing GET from any origin, or the map can't read the image)
+  url:"bangalore-1960s.jpg",
+  // aligned by hand over today's map (Sept 2026)
+  corners:[[77.517891, 13.082213], [77.735287, 13.082213], [77.735287, 12.892978], [77.517891, 12.892978]],
+  aligned:true   // true = use these corners as-is; false = start at the image's own proportions
+};
+
+/* ===================================================================== */
+const STORE_KEY = "rockumentary-map-pins-v1";
+const BASEMAPS = {
+  illustrated: null,   // filled in below with ILLUSTRATED_STYLE
+  dark:    "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+  light:   "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+  streets: "https://tiles.openfreemap.org/styles/liberty"
+};
+/* ---------- hand-drawn icons (24×24, ink outlines) ---------- */
+const ICONS = {
+  theatre:`<path d="M3 10 12 4l9 6z"/><path d="M4.5 10h15v10h-15z"/><path d="M9.5 20v-5a2.5 2.5 0 0 1 5 0v5" fill="#111"/><path d="M7 12.5v2M17 12.5v2" fill="none"/>`,
+  school:`<path d="M4 20V11l8-5 8 5v9z"/><path d="M10 20v-4h4v4" fill="#111"/><path d="M12 6V2.5l3.5 1.3L12 5" /><circle cx="12" cy="11.5" r="1.6" fill="#111"/>`,
+  cup:`<path d="M5 9h11v5a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5z"/><path d="M16 10.5h1.5a2.5 2.5 0 0 1 0 5H15" fill="none"/><path d="M8.5 3.5c-1 1.2 1 2 0 3.5M12 3.5c-1 1.2 1 2 0 3.5" fill="none"/>`,
+  cocktail:`<path d="M4 5h16l-8 8z"/><path d="M12 13v6M8.5 20h7" fill="none"/><circle cx="17" cy="4" r="2" fill="#e8403a"/>`,
+  guitar:`<path d="M13.5 10.5 20 4" fill="none" stroke-width="2.4"/><path d="M18.5 2.8l2.7 2.7-1.4 1.4-2.7-2.7z" fill="#111"/><path d="M10.5 9.5c-1.5-1.5-4.5-1-5.5 1.5-.5 1.2-1.8 1.5-2.5 2.5-1.2 1.8.2 5 2.5 6s4.3 1.2 6-.5c1-.8 1.3-2 2.5-2.5 2.5-1 3-4 1.5-5.5z"/><circle cx="9" cy="15" r="1.6" fill="#111"/>`,
+  palace:`<path d="M4 20V11h3V8h2v3h6V8h2v3h3v9z"/><path d="M12 11V5" fill="none"/><path d="M10.5 5.5 12 3l1.5 2.5z"/><path d="M10 20v-4a2 2 0 0 1 4 0v4" fill="#111"/>`,
+  tree:`<path d="M12 21v-6" fill="none" stroke-width="2.4"/><path d="M12 15c-5 0-7-3-5.5-6 .5-3 4-5 6.5-3.5C15.5 4 19 6.5 17.5 10c1.5 3-.5 5-5.5 5z" fill="#6fcf7c"/>`,
+  mug:`<path d="M5 8h10v11a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z" fill="#ffcc33"/><path d="M15 10h2a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2h-2" fill="none"/><path d="M4.5 8c0-2 2-3 3.5-2 1-1.5 3.5-1.5 4.5 0 1.5-.5 3 .8 2.5 2z"/><path d="M8 11v6M12 11v6" fill="none"/>`,
+  jukebox:`<path d="M5 21V9a7 7 0 0 1 14 0v12z" fill="#ffcc33"/><path d="M8 21v-6h8v6"/><path d="M8 9a4 4 0 0 1 8 0" fill="none"/><circle cx="12" cy="12" r="1" fill="#111"/>`,
+  mic:`<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4M9 21h6" fill="none"/>`,
+  record:`<circle cx="12" cy="12" r="9" fill="#111"/><circle cx="12" cy="12" r="3" fill="#ffcc33"/><path d="M12 5.5a6.5 6.5 0 0 1 6.5 6.5" fill="none" stroke="#777"/>`,
+  columns:`<path d="M3 9l9-5 9 5z"/><path d="M4 20h16M6 10v8M10 10v8M14 10v8M18 10v8" fill="none"/>`,
+  megaphone:`<path d="M4 10v4h3l8 4V6l-8 4z"/><path d="M18 9a4 4 0 0 1 0 6" fill="none"/><path d="M7 14l1.5 5h2L9.5 15" />`
+};
+const LAYER_ICON = { dance:"theatre", schools:"school", hangouts:"cup", cabaret:"cocktail", venues:"guitar" };
+const PLACE_ICON = { "dance-2":"columns", "venues-1":"palace", "venues-10":"tree", "venues-12":"tree", "venues-11":"mic",
+  "venues-4":"mic", "venues-23":"record", "venues-24":"mic", "venues-13":"mic", "venues-14":"megaphone", "venues-2":"record", "venues-8":"record", "venues-9":"record",
+  "hangouts-1":"jukebox", "hangouts-8":"mug", "hangouts-9":"mug" };
+function iconSvg(p){
+  const name = PLACE_ICON[p.key] || LAYER_ICON[p.layer] || "guitar";
+  return `<svg viewBox="0 0 24 24" fill="#fff" stroke="#111" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">${ICONS[name]}</svg>`;
+}
+// a steady little tilt per place, so labels look hand-stuck rather than machine-set
+function tilt(key){ let h = 0; for(const c of key) h = (h * 31 + c.charCodeAt(0)) | 0; return ((Math.abs(h) % 7) - 3) + "deg"; }
+
+/* ---------- hand-written neighbourhood names + lake doodles ---------- */
+const AREAS = [
+  { t:"CANTONMENT", c:[77.6100, 12.9800], r:-6 },
+  { t:"MG ROAD", c:[77.6060, 12.9778], r:-2, small:true },
+  { t:"BRIGADE RD", c:[77.6092, 12.9690], r:-84, small:true },
+  { t:"CUBBON PARK", c:[77.5930, 12.9770], r:-8 },
+  { t:"RICHMOND TOWN", c:[77.6040, 12.9600], r:4, small:true },
+  { t:"ULSOOR", c:[77.6240, 12.9850], r:-5, small:true },
+  { t:"INDIRANAGAR", c:[77.6420, 12.9760], r:-7 },
+  { t:"MALLESWARAM", c:[77.5690, 13.0030], r:-5 },
+  { t:"JAYAMAHAL", c:[77.5960, 13.0030], r:3, small:true },
+  { t:"BASAVANAGUDI", c:[77.5700, 12.9420], r:-4, small:true },
+  { t:"JP NAGAR", c:[77.5850, 12.9050], r:-4, small:true }
+];
+const LAKES = [ [77.6200, 12.9820], [77.5745, 13.0092], [77.5860, 12.9480] ];   // Ulsoor, Sankey Tank, Lalbagh
+const WAVES_SVG = `<svg class="waves" viewBox="0 0 46 18" fill="none" stroke="#9cc3ff" stroke-width="2.4" stroke-linecap="round"><path d="M2 7c4-4 7-4 11 0s7 4 11 0 7-4 11 0 5 3 9 0"/><path d="M8 15c4-4 7-4 11 0s7 4 11 0 7-4 11 0"/></svg>`;
+function addDecorations(){
+  AREAS.forEach(a => {
+    const el = document.createElement("div");
+    el.className = "area-label" + (a.small ? " small" : "");
+    el.style.setProperty("--rot", a.r + "deg");
+    el.textContent = a.t;
+    new maplibregl.Marker({ element:el, anchor:"center" }).setLngLat(a.c).addTo(map);
+  });
+  LAKES.forEach(c => {
+    const el = document.createElement("div"); el.innerHTML = WAVES_SVG;
+    new maplibregl.Marker({ element:el.firstChild, anchor:"center" }).setLngLat(c).addTo(map);
+  });
+}
+
+/* ---------- "Illustrated" base map: bold ink-outlined roads, flat parks, strong water, no clutter ---------- */
+const INK = "#0b0c10", LAND = "#1f2336", ROAD = "#efe6d0", WATER = "#2f6fd1", PARK = "#2e6b4a";
+function roadW(k){ return ["interpolate", ["exponential", 1.5], ["zoom"], 10, 0.6 * k, 14, 3 * k, 17, 12 * k]; }
+const ILLUSTRATED_STYLE = {
+  version:8,
+  sources:{ omt:{ type:"vector", url:"https://tiles.openfreemap.org/planet" } },
+  layers:[
+    { id:"bg", type:"background", paint:{ "background-color":LAND } },
+    { id:"park", type:"fill", source:"omt", "source-layer":"park", paint:{ "fill-color":PARK, "fill-pattern":"hatch" } },
+    { id:"green", type:"fill", source:"omt", "source-layer":"landcover", filter:["in", ["get", "class"], ["literal", ["grass", "wood"]]],
+      paint:{ "fill-pattern":"hatch" } },
+    { id:"water", type:"fill", source:"omt", "source-layer":"water", paint:{ "fill-color":WATER } },
+    { id:"water-edge", type:"line", source:"omt", "source-layer":"water", paint:{ "line-color":"#9cc3ff", "line-width":1.6 } },
+    { id:"rail", type:"line", source:"omt", "source-layer":"transportation", filter:["==", ["get", "class"], "rail"],
+      paint:{ "line-color":"#8a8fa6", "line-width":1.4, "line-dasharray":[3, 2] } },
+    { id:"road-minor-casing", type:"line", source:"omt", "source-layer":"transportation", minzoom:13,
+      filter:["in", ["get", "class"], ["literal", ["minor", "service", "tertiary"]]],
+      layout:{ "line-cap":"round", "line-join":"round" }, paint:{ "line-color":INK, "line-width":roadW(0.9) } },
+    { id:"road-major-casing", type:"line", source:"omt", "source-layer":"transportation",
+      filter:["in", ["get", "class"], ["literal", ["motorway", "trunk", "primary", "secondary"]]],
+      layout:{ "line-cap":"round", "line-join":"round" }, paint:{ "line-color":INK, "line-width":roadW(1.9) } },
+    { id:"road-minor", type:"line", source:"omt", "source-layer":"transportation", minzoom:13,
+      filter:["in", ["get", "class"], ["literal", ["minor", "service", "tertiary"]]],
+      layout:{ "line-cap":"round", "line-join":"round" }, paint:{ "line-color":"#b9b2a3", "line-width":roadW(0.5) } },
+    { id:"road-major", type:"line", source:"omt", "source-layer":"transportation",
+      filter:["in", ["get", "class"], ["literal", ["motorway", "trunk", "primary", "secondary"]]],
+      layout:{ "line-cap":"round", "line-join":"round" }, paint:{ "line-color":ROAD, "line-width":roadW(1.3) } }
+  ]
+};
+// diagonal hatching for parks, drawn once and handed to the map as a pattern
+function hatchImage(){
+  const n = 12, c = document.createElement("canvas"); c.width = c.height = n;
+  const g = c.getContext("2d");
+  g.fillStyle = PARK; g.fillRect(0, 0, n, n);
+  g.strokeStyle = "#5fb37a"; g.lineWidth = 1.6;
+  g.beginPath(); g.moveTo(0, n); g.lineTo(n, 0); g.moveTo(-n / 2, n / 2); g.lineTo(n / 2, -n / 2); g.moveTo(n / 2, n + n / 2); g.lineTo(n + n / 2, n / 2); g.stroke();
+  return g.getImageData(0, 0, n, n);
+}
+
+// used when the street map can't load (offline, blocked network, embedded previews)
+const BLANK_STYLE = { version:8, sources:{}, layers:[{ id:"bg", type:"background", paint:{ "background-color":"#1f2336" } }] };
+const layerById = Object.fromEntries(LAYERS.map(l => [l.id, l]));
+PLACES.forEach((p, i) => { p.key = p.layer + "-" + p.n; });
+
+// Editor mode: open the page as index.html#edit. Everyone else gets the clean viewer:
+// layers, pins and a 1960s-map on/off switch, always using the positions saved in this file.
+const EDITOR = location.hash === "#edit";
+document.body.classList.toggle("editor", EDITOR);
+window.addEventListener("hashchange", () => location.reload());
+
+// pins you've fixed are remembered in this browser (editor mode only)
+function loadOverrides(){ try { return JSON.parse(localStorage.getItem(STORE_KEY)) || {}; } catch(e){ return {}; } }
+function saveOverrides(o){ try { localStorage.setItem(STORE_KEY, JSON.stringify(o)); } catch(e){} }
+let overrides = EDITOR ? loadOverrides() : {};
+PLACES.forEach(p => { const o = overrides[p.key]; if(o){ p.lat = o.lat; p.lng = o.lng; p.approx = false; } });
+
+const HIST_KEY = "rockumentary-historic-v1";
+const hist = (() => {
+  let saved = {}; if(EDITOR){ try { saved = JSON.parse(localStorage.getItem(HIST_KEY)) || {}; } catch(e){} }
+  return { url:HISTORIC_MAP.url, corners:saved.corners || HISTORIC_MAP.corners.map(c => c.slice()),
+           on:saved.on !== false, opacity:saved.opacity == null ? 0.7 : saved.opacity, loaded:false, aligning:false,
+           userAligned:!!saved.corners || HISTORIC_MAP.aligned, aspect:null };
+})();
+function saveHist(){ try { localStorage.setItem(HIST_KEY, JSON.stringify({ corners:hist.corners, on:hist.on, opacity:hist.opacity })); } catch(e){} }
+
+const visible = Object.fromEntries(LAYERS.map(l => [l.id, true]));
+let focusedLayer = null;
+let editing = false;
+let placing = null;       // place waiting for a map click
+const markers = {};       // key -> maplibregl.Marker
+
+const map = new maplibregl.Map({
+  container:"map",
+  style:ILLUSTRATED_STYLE,
+  center:[77.603, 12.972],
+  zoom:14,
+  attributionControl:{ compact:true }
+});
+map.addControl(new maplibregl.NavigationControl({ visualizePitch:true }), "top-right");
+map.addControl(new maplibregl.ScaleControl({ unit:"metric" }), "bottom-right");
+BASEMAPS.illustrated = ILLUSTRATED_STYLE;
+map.on("styleimagemissing", e => { if(e.id === "hatch" && !map.hasImage("hatch")) map.addImage("hatch", hatchImage()); });
+// labels on every pin once you're close enough to read them; area names hidden when zoomed far out
+function zoomClasses(){
+  const z = map.getZoom();
+  document.body.classList.toggle("labels-on", z >= 16.8);
+  document.body.classList.toggle("far", z < 11.3);
+}
+map.on("zoom", zoomClasses);
+map.on("load", zoomClasses);
+addDecorations();
+
+/* ---------- helpers ---------- */
+function $(id){ return document.getElementById(id); }
+function esc(s){ const d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; }
+function toast(msg){ const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 2200); }
+
+// pin photo galleries: place.media = [{ src, caption, credit }]
+const galIndex = {};
+function galleryHtml(p){
+  const list = p.media || [];
+  if(!list.length) return "";
+  const i = (galIndex[p.key] || 0) % list.length, m = list[i];
+  const nav = list.length > 1
+    ? `<button type="button" class="nav prev" data-gal="${p.key}" data-dir="-1" aria-label="Previous photo"><span class="material-icons">chevron_left</span></button>
+       <button type="button" class="nav next" data-gal="${p.key}" data-dir="1" aria-label="Next photo"><span class="material-icons">chevron_right</span></button>
+       <span class="count">${i + 1} / ${list.length}</span>` : "";
+  return `<div class="pop-gal"><div class="frame"><img src="${esc(m.src)}" alt="${esc(m.caption || p.name)}" data-zoom="${p.key}">${nav}</div>
+    ${m.caption || m.credit ? `<div class="cap">${esc(m.caption || "")}${m.credit ? `<small>${esc(m.credit)}</small>` : ""}</div>` : ""}</div>`;
+}
+function popupHtml(p){
+  const l = layerById[p.layer];
+  return `<div class="pop-layer" style="color:${l.color}">${esc(l.name)} · ${esc(l.era)}</div>
+    <div class="pop-name">${p.n}. ${esc(p.name)}</div>
+    ${galleryHtml(p)}
+    ${p.now ? `<div class="pop-now">${esc(p.now)}</div>` : ""}
+    <div class="pop-note">${esc(p.area)}${p.note ? " · " + esc(p.note) : ""}</div>
+    <div class="pop-src">${p.approx && EDITOR ? "Approximate location · " : ""}Source: ${esc(p.src || l.source)}</div>`;
+}
+
+function makeMarker(p){
+  const el = document.createElement("div");
+  el.className = "pin-wrap";
+  const dot = document.createElement("div");
+  dot.className = "pin" + (p.approx ? " approx" : "");
+  dot.style.background = layerById[p.layer].color;
+  dot.innerHTML = iconSvg(p) + `<span class="badge">${p.n}</span>`;
+  el.appendChild(dot);
+  const tag = document.createElement("div");
+  tag.className = "pin-label";
+  tag.style.setProperty("--rot", tilt(p.key));
+  tag.textContent = p.name;
+  el.appendChild(tag);
+  dot.addEventListener("animationend", () => dot.classList.remove("pop"));   // so highlight/dim can take over
+  el.setAttribute("aria-label", p.name);
+  const m = new maplibregl.Marker({ element:el, draggable:editing })
+    .setLngLat([p.lng, p.lat])
+    .setPopup(new maplibregl.Popup({ offset:16, closeButton:true, maxWidth:"320px" }).setHTML(popupHtml(p)));
+  m.on("dragend", () => {
+    const ll = m.getLngLat();
+    setPlaceCoords(p, ll.lat, ll.lng);
+  });
+  markers[p.key] = m;
+  if(visible[p.layer]) m.addTo(map);
+  return m;
+}
+
+function setPlaceCoords(p, lat, lng){
+  p.lat = +lat.toFixed(6); p.lng = +lng.toFixed(6); p.approx = false;
+  overrides[p.key] = { lat:p.lat, lng:p.lng };
+  saveOverrides(overrides);
+  if(markers[p.key]){
+    markers[p.key].setLngLat([p.lng, p.lat]);
+    markers[p.key].getElement().querySelector(".pin").classList.remove("approx");
+    markers[p.key].getPopup().setHTML(popupHtml(p));
+  } else {
+    makeMarker(p);
+  }
+  renderPanel();
+  toast(`Saved ${p.name}`);
+}
+
+function stepGallery(key, dir){
+  const p = PLACES.find(x => x.key === key); if(!p || !p.media) return;
+  galIndex[key] = ((galIndex[key] || 0) + dir + p.media.length) % p.media.length;
+  if(markers[key]) markers[key].getPopup().setHTML(popupHtml(p));
+}
+let lb = null;   // { key, i }
+function showLightbox(){
+  const p = PLACES.find(x => x.key === lb.key), m = p.media[lb.i];
+  const box = $("lightbox");
+  box.querySelector("img").src = m.src;
+  box.querySelector("img").alt = m.caption || p.name;
+  box.querySelector(".lb-cap").innerHTML = `${esc(m.caption || p.name)}${m.credit ? `<small>${esc(m.credit)}</small>` : ""}`;
+  box.querySelector(".lb-prev").hidden = box.querySelector(".lb-next").hidden = p.media.length < 2;
+  box.hidden = false;
+  box.querySelector(".lb-close").focus();
+}
+function moveLightbox(dir){
+  const p = PLACES.find(x => x.key === lb.key);
+  lb.i = (lb.i + dir + p.media.length) % p.media.length;
+  galIndex[lb.key] = lb.i; showLightbox();
+  if(markers[lb.key]) markers[lb.key].getPopup().setHTML(popupHtml(p));
+}
+function closeLightbox(){ $("lightbox").hidden = true; lb = null; }
+document.addEventListener("click", e => {
+  const nav = e.target.closest("[data-gal]");
+  if(nav){ e.stopPropagation(); stepGallery(nav.dataset.gal, +nav.dataset.dir); return; }
+  const z = e.target.closest("[data-zoom]");
+  if(z){ lb = { key:z.dataset.zoom, i:galIndex[z.dataset.zoom] || 0 }; showLightbox(); }
+});
+$("lightbox").addEventListener("click", e => {
+  if(e.target.closest(".lb-close") || e.target.id === "lightbox") closeLightbox();
+  else if(e.target.closest(".lb-prev")) moveLightbox(-1);
+  else if(e.target.closest(".lb-next")) moveLightbox(1);
+});
+document.addEventListener("keydown", e => {
+  if(!lb) return;
+  if(e.key === "Escape") closeLightbox();
+  if(e.key === "ArrowLeft") moveLightbox(-1);
+  if(e.key === "ArrowRight") moveLightbox(1);
+});
+
+/* ---------- panel ---------- */
+function renderPanel(){
+  $("layers").innerHTML = LAYERS.map(l => {
+    const count = PLACES.filter(p => p.layer === l.id && (EDITOR || p.lat != null)).length;
+    return `<div class="layer-row${focusedLayer === l.id ? " focused" : ""}" role="listitem" tabindex="0" data-layer="${l.id}">
+      <input type="checkbox" data-toggle="${l.id}" ${visible[l.id] ? "checked" : ""} aria-label="Show ${esc(l.name)}">
+      <span class="chip" style="background:${l.color}"></span>
+      <span class="layer-name">${esc(l.name)}<span class="layer-era">${esc(l.era)}</span></span>
+      <span class="layer-count">${count}</span>
+    </div>`;
+  }).join("");
+
+  const shownLayers = LAYERS.filter(l => visible[l.id] && (!focusedLayer || focusedLayer === l.id));
+  $("places").innerHTML = shownLayers.map(l => {
+    const items = PLACES.filter(p => p.layer === l.id && (EDITOR || p.lat != null)).map(p => {
+      const missing = p.lat == null;
+      return `<div class="place" tabindex="0" data-key="${p.key}">
+        <span class="num" style="background:${l.color}">${p.n}</span>
+        <div>
+          <div class="pname">${esc(p.name)}${!EDITOR ? "" : missing ? '<span class="tag missing">No location</span>' : p.approx ? '<span class="tag approx">Approx</span>' : ""}</div>
+          <div class="pmeta">${esc(p.now ? p.now + " · " : "")}${esc(p.area)}</div>
+          ${missing && editing ? `<button type="button" class="place-btn" data-place="${p.key}">Place on map</button>` : ""}
+        </div>
+      </div>`;
+    }).join("");
+    return `<div class="group-title">${esc(l.name)}</div>${items}`;
+  }).join("");
+
+  $("legend-rows").innerHTML = LAYERS.filter(l => visible[l.id]).map(l =>
+    `<div class="row"><span class="chip" style="background:${l.color}"></span>${esc(l.name)}</div>`).join("");
+
+  updateInfo();
+}
+
+function updateInfo(){
+  const layers = focusedLayer ? [layerById[focusedLayer]] : LAYERS.filter(l => visible[l.id]);
+  $("year-value").textContent = focusedLayer ? layerById[focusedLayer].era : "1920–Today";
+  $("places-value").textContent = PLACES.filter(p => layers.some(l => l.id === p.layer) && p.lat != null).length;
+}
+
+function applyVisibility(){
+  PLACES.forEach(p => {
+    const m = markers[p.key];
+    if(!m) return;
+    const show = visible[p.layer] && (!focusedLayer || focusedLayer === p.layer);
+    if(show) m.addTo(map); else m.remove();
+  });
+}
+
+function fitTo(places){
+  const pts = places.filter(p => p.lat != null);
+  if(!pts.length) return;
+  const b = new maplibregl.LngLatBounds();
+  pts.forEach(p => b.extend([p.lng, p.lat]));
+  const narrow = window.innerWidth <= 720;
+  map.fitBounds(b, {
+    padding: narrow ? { top:70, bottom: window.innerHeight * 0.46, left:30, right:30 } : { top:90, bottom:60, left:390, right:80 },
+    maxZoom:16, duration:1200
+  });
+}
+
+function focusLayer(id){
+  focusedLayer = focusedLayer === id ? null : id;
+  if(focusedLayer) visible[focusedLayer] = true;
+  applyVisibility();
+  renderPanel();
+  fitTo(focusedLayer ? PLACES.filter(p => p.layer === focusedLayer) : PLACES.filter(p => visible[p.layer]));
+}
+
+/* ---------- events ---------- */
+$("layers").addEventListener("click", e => {
+  const t = e.target.closest("[data-toggle]");
+  if(t){
+    visible[t.dataset.toggle] = t.checked;
+    if(!t.checked && focusedLayer === t.dataset.toggle) focusedLayer = null;
+    applyVisibility(); renderPanel();
+    return;
+  }
+  const row = e.target.closest(".layer-row");
+  if(row) focusLayer(row.dataset.layer);
+});
+$("layers").addEventListener("keydown", e => {
+  const row = e.target.closest(".layer-row");
+  if(row && (e.key === "Enter" || e.key === " ")){ e.preventDefault(); focusLayer(row.dataset.layer); }
+});
+
+$("places").addEventListener("click", e => {
+  const btn = e.target.closest("[data-place]");
+  if(btn){
+    placing = PLACES.find(p => p.key === btn.dataset.place);
+    map.getCanvas().style.cursor = "crosshair";
+    toast(`Click the map where "${placing.name}" was`);
+    return;
+  }
+  const row = e.target.closest(".place");
+  if(!row) return;
+  const p = PLACES.find(x => x.key === row.dataset.key);
+  if(p.lat == null){ toast(editing ? "Use “Place on map” to set this location" : "Location needed: turn on Fix pins to add it"); return; }
+  map.flyTo({ center:[p.lng, p.lat], zoom:17, duration:1100 });
+  const m = markers[p.key];
+  if(m && !m.getPopup().isOpen()) m.togglePopup();
+});
+$("places").addEventListener("keydown", e => {
+  if(e.key === "Enter" && e.target.classList.contains("place")) e.target.click();
+});
+
+map.on("click", e => {
+  if(!placing) return;
+  const p = placing; placing = null;
+  map.getCanvas().style.cursor = "";
+  setPlaceCoords(p, e.lngLat.lat, e.lngLat.lng);
+});
+
+$("btn-all").addEventListener("click", () => {
+  focusedLayer = null;
+  LAYERS.forEach(l => visible[l.id] = true);
+  applyVisibility(); renderPanel();
+  fitTo(PLACES);
+});
+
+$("btn-edit").addEventListener("click", () => {
+  editing = !editing;
+  $("btn-edit").classList.toggle("on", editing);
+  $("edit-banner").hidden = !editing;
+  document.body.classList.toggle("editing", editing);
+  Object.values(markers).forEach(m => m.setDraggable(editing));
+  placing = null; map.getCanvas().style.cursor = "";
+  renderPanel();
+});
+
+$("btn-copy").addEventListener("click", () => {
+  const data = PLACES.map(({ layer, n, name, now, area, lat, lng, approx, note }) =>
+    ({ layer, n, name, now, area, lat, lng, approx:!!approx, note }));
+  const text = JSON.stringify({ historicMapCorners:hist.corners, places:data }, null, 2);
+  const done = () => toast("Copied places and map corners as JSON");
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+  } else fallbackCopy(text, done);
+});
+function fallbackCopy(text, done){
+  const ta = document.createElement("textarea");
+  ta.value = text; document.body.appendChild(ta); ta.select();
+  try { document.execCommand("copy"); done(); } catch(e){ toast("Copy failed"); }
+  ta.remove();
+}
+
+$("basemap").addEventListener("change", e => map.setStyle(BASEMAPS[e.target.value]));
+
+/* ---------- historic 1960s map overlay ---------- */
+const cornerMarkers = [];
+function addHistoricLayer(){
+  if(map.getSource("historic")) return;
+  const img = new Image();
+  img.onload = () => {
+    hist.aspect = img.naturalWidth / img.naturalHeight;
+    if(!hist.userAligned) hist.corners = cornersForAspect(hist.aspect);
+    if(map.getSource("historic")) return;
+    map.addSource("historic", { type:"image", url:hist.url, coordinates:hist.corners });
+    // draw above the base map's land/roads but below its labels, so street names stay readable
+    const firstSymbol = (map.getStyle().layers || []).find(l => l.type === "symbol");
+    map.addLayer({ id:"historic", type:"raster", source:"historic",
+      paint:{ "raster-opacity":mode === "story" ? storyHist : hist.opacity, "raster-fade-duration":0,
+              "raster-opacity-transition":{ duration:900, delay:0 } },
+      layout:{ visibility:(hist.on || mode === "story") ? "visible" : "none" } }, firstSymbol && firstSymbol.id);
+    hist.loaded = true;
+    $("hist-hint").textContent = hist.aligning ? "Drag the yellow corners until old roads line up with today's." : "";
+  };
+  img.onerror = () => {
+    hist.loaded = false;
+    $("hist-hint").textContent = "No 1960s map found yet. Use “Load map image” to preview; the permanent copy will come from Cloudflare R2.";
+  };
+  img.src = hist.url;
+}
+// place the image at its true width:height ratio, centred on the default city extent
+function cornersForAspect(aspect){
+  const d = HISTORIC_MAP.corners;
+  const cLng = (d[0][0] + d[1][0]) / 2, cLat = (d[0][1] + d[3][1]) / 2;
+  const halfLat = (d[0][1] - d[3][1]) / 2;
+  const halfLng = halfLat * aspect / Math.cos(cLat * Math.PI / 180);
+  const r = v => +v.toFixed(6);
+  return [[r(cLng - halfLng), r(cLat + halfLat)], [r(cLng + halfLng), r(cLat + halfLat)],
+          [r(cLng + halfLng), r(cLat - halfLat)], [r(cLng - halfLng), r(cLat - halfLat)]];
+}
+function refreshHistoric(){
+  if(map.getLayer("historic")) map.removeLayer("historic");
+  if(map.getSource("historic")) map.removeSource("historic");
+  addHistoricLayer();
+}
+function setCorners(){
+  const src = map.getSource("historic");
+  if(src) src.setCoordinates(hist.corners);
+  hist.userAligned = true;
+  saveHist();
+}
+// --- whole-map transforms, done in screen pixels so move/resize/rotate feel natural at any zoom ---
+let moveHandle = null;
+function histCenter(){
+  const pts = hist.corners.map(c => map.project(c));
+  return { x: pts.reduce((a,p) => a + p.x, 0) / 4, y: pts.reduce((a,p) => a + p.y, 0) / 4 };
+}
+function transformCorners(fn){
+  hist.corners = hist.corners.map(c => {
+    const ll = map.unproject(fn(map.project(c)));
+    return [+ll.lng.toFixed(6), +ll.lat.toFixed(6)];
+  });
+  setCorners();
+  syncHandles();
+}
+function moveBy(dx, dy){ transformCorners(p => ({ x:p.x + dx, y:p.y + dy })); }
+function scaleBy(k){
+  const c = histCenter();
+  transformCorners(p => ({ x:c.x + (p.x - c.x) * k, y:c.y + (p.y - c.y) * k }));
+}
+function rotateBy(deg){
+  const c = histCenter(), a = deg * Math.PI / 180, cos = Math.cos(a), sin = Math.sin(a);
+  transformCorners(p => ({ x:c.x + (p.x - c.x) * cos - (p.y - c.y) * sin, y:c.y + (p.x - c.x) * sin + (p.y - c.y) * cos }));
+}
+function syncHandles(){
+  cornerMarkers.forEach((m, i) => m.setLngLat(hist.corners[i]));
+  if(moveHandle && !moveHandle._dragging) moveHandle.setLngLat(map.unproject(histCenter()));
+}
+function fine(){ return $("hist-fine").checked; }
+
+function setAligning(on){
+  hist.aligning = on;
+  $("hist-align").classList.toggle("on", on);
+  $("hist-tools").hidden = !on;
+  cornerMarkers.splice(0).forEach(m => m.remove());
+  if(moveHandle){ moveHandle.remove(); moveHandle = null; }
+  if(on){
+    if(!hist.on){ hist.on = true; $("hist-on").checked = true; applyHistVisibility(); }
+    hist.corners.forEach((c, i) => {
+      const el = document.createElement("div"); el.className = "corner";
+      el.title = ["Top-left","Top-right","Bottom-right","Bottom-left"][i] + " corner: drag to resize";
+      const m = new maplibregl.Marker({ element:el, draggable:true }).setLngLat(c).addTo(map);
+      let start = null;
+      m.on("dragstart", () => { start = hist.corners.map(k => map.project(k)); });
+      m.on("drag", () => {
+        if($("hist-lock").checked && start){
+          // uniform scale from the opposite corner: shape and angle stay exactly the same
+          const a = start[(i + 2) % 4], p0 = start[i], p1 = map.project(m.getLngLat());
+          const v0x = p0.x - a.x, v0y = p0.y - a.y;
+          const k = Math.max(0.05, ((p1.x - a.x) * v0x + (p1.y - a.y) * v0y) / (v0x * v0x + v0y * v0y));
+          hist.corners = start.map(p => {
+            const ll = map.unproject({ x:a.x + (p.x - a.x) * k, y:a.y + (p.y - a.y) * k });
+            return [+ll.lng.toFixed(6), +ll.lat.toFixed(6)];
+          });
+          setCorners();
+          cornerMarkers.forEach((cm, j) => { if(j !== i) cm.setLngLat(hist.corners[j]); });
+        } else {
+          const ll = m.getLngLat(); hist.corners[i] = [+ll.lng.toFixed(6), +ll.lat.toFixed(6)];
+          setCorners();
+        }
+        if(moveHandle) moveHandle.setLngLat(map.unproject(histCenter()));
+      });
+      m.on("dragend", () => { start = null; m.setLngLat(hist.corners[i]); });
+      cornerMarkers.push(m);
+    });
+    // round centre handle: drag to slide the whole 1960s map
+    const el = document.createElement("div"); el.className = "move-handle";
+    el.title = "Drag to move the whole 1960s map";
+    el.innerHTML = '<span class="material-icons">open_with</span>';
+    moveHandle = new maplibregl.Marker({ element:el, draggable:true }).setLngLat(map.unproject(histCenter())).addTo(map);
+    let last = null;
+    moveHandle.on("dragstart", () => { moveHandle._dragging = true; last = map.project(moveHandle.getLngLat()); });
+    moveHandle.on("drag", () => {
+      const now = map.project(moveHandle.getLngLat());
+      moveBy(now.x - last.x, now.y - last.y);
+      last = now;
+    });
+    moveHandle.on("dragend", () => { moveHandle._dragging = false; syncHandles(); });
+
+    const b = new maplibregl.LngLatBounds(); hist.corners.forEach(c => b.extend(c));
+    map.fitBounds(b, { padding:{ top:60, bottom:60, left: window.innerWidth <= 720 ? 20 : 380, right:60 }, duration:900 });
+    $("hist-hint").textContent = hist.loaded
+      ? "Drag the round handle to move the map and the yellow corners to resize it. Tip: set opacity to about 50%."
+      : $("hist-hint").textContent;
+  } else if(hist.loaded){
+    $("hist-hint").textContent = "";
+  }
+}
+$("hist-tools").addEventListener("click", e => {
+  const b = e.target.closest("button"); if(!b) return;
+  const f = fine();
+  if(b.dataset.nudge){ const [x, y] = b.dataset.nudge.split(",").map(Number); const step = f ? 2 : 20; moveBy(x * step, y * step); }
+  if(b.dataset.scale){ const k = +b.dataset.scale; scaleBy(f ? 1 + (k - 1) / 5 : k); }
+  if(b.dataset.rotate){ rotateBy(+b.dataset.rotate * (f ? 0.2 : 1)); }
+});
+document.addEventListener("keydown", e => {
+  if(!hist.aligning) return;
+  if(e.target.closest && e.target.closest("input, select, textarea")) return;
+  const f = e.shiftKey || fine(), step = f ? 2 : 20;
+  const actions = {
+    ArrowUp:() => moveBy(0, -step), ArrowDown:() => moveBy(0, step),
+    ArrowLeft:() => moveBy(-step, 0), ArrowRight:() => moveBy(step, 0),
+    "+":() => scaleBy(f ? 1.004 : 1.02), "=":() => scaleBy(f ? 1.004 : 1.02),
+    "-":() => scaleBy(f ? 0.996 : 0.98), "_":() => scaleBy(f ? 0.996 : 0.98),
+    "[":() => rotateBy(f ? -0.2 : -1), "{":() => rotateBy(-0.2),
+    "]":() => rotateBy(f ? 0.2 : 1), "}":() => rotateBy(0.2)
+  };
+  if(actions[e.key]){ e.preventDefault(); actions[e.key](); }
+});
+// keep the centre handle on the image while the map is panned or zoomed
+map.on("move", () => { if(hist.aligning) syncHandles(); });
+function applyHistVisibility(){
+  if(map.getLayer("historic")) map.setLayoutProperty("historic", "visibility", hist.on ? "visible" : "none");
+  saveHist();
+}
+$("hist-on").checked = hist.on;
+$("hist-opacity").value = Math.round(hist.opacity * 100);
+$("hist-opacity-val").textContent = Math.round(hist.opacity * 100) + "%";
+$("hist-on").addEventListener("change", e => { hist.on = e.target.checked; applyHistVisibility(); });
+$("hist-opacity").addEventListener("input", e => {
+  hist.opacity = e.target.value / 100;
+  $("hist-opacity-val").textContent = e.target.value + "%";
+  if(map.getLayer("historic")) map.setPaintProperty("historic", "raster-opacity", hist.opacity);
+  saveHist();
+});
+$("hist-file").addEventListener("change", e => {
+  const f = e.target.files && e.target.files[0];
+  if(!f) return;
+  hist.url = URL.createObjectURL(f);   // preview only; the permanent copy comes from R2 (HISTORIC_MAP.url)
+  hist.userAligned = HISTORIC_MAP.aligned;  // keep the saved position; a brand-new map starts at its own proportions
+  if(hist.aligning) setAligning(false);
+  refreshHistoric();
+  toast("Map loaded. Use Align to line it up.");
+});
+$("hist-align").addEventListener("click", () => setAligning(!hist.aligning));
+$("hist-reset").addEventListener("click", () => {
+  hist.corners = HISTORIC_MAP.aligned || !hist.aspect ? HISTORIC_MAP.corners.map(c => c.slice()) : cornersForAspect(hist.aspect);
+  setCorners();
+  if(hist.aligning) setAligning(true);
+  toast("1960s map position reset");
+});
+// the base-map switcher replaces the whole style, so put the overlay back each time
+map.on("style.load", addHistoricLayer);
+
+/* =====================================================================
+   STORY: scroll-driven chapters over the map (template: fixed #map + scrolling #story).
+   Each step says where the camera goes, which pins show / light up, the Year counter,
+   how strong the 1960s map is, and which archival media sits in the card.
+   media.src = image URL (R2 later); leave it out to show a labelled placeholder.
+   Text below is draft copy from the storyboard — edit freely.
+   ===================================================================== */
+const CITY = { center:[77.600, 12.975], zoom:12.4, pitch:20, bearing:0 };
+const CBD = { center:[77.603, 12.9725], zoom:14.2, pitch:40, bearing:-10 };
+const HINDU = { text:"The Hindu: The sound of music in Bengaluru", href:"https://www.thehindu.com/news/cities/bangalore/the-sound-of-music-in-bengaluru/article31899305.ece" };
+const STORY = [
+
+  { id:"intro", hero:true,
+    camera:{ center:[77.600, 12.975], zoom:12.1, pitch:0, bearing:0 },
+    year:1920, hist:0.85, pins:{ layers:[] } },
+
+
+  { id:"ch1", chapter:1, kicker:"Chapter 1 · 1920s–1940s", title:"The Advent of Jazz",
+    body:["Long before rock, there was the dance band.",
+          "In the British Cantonment, ballrooms, theatres and clubs filled with the new sound arriving from across the seas: jazz."],
+    media:{ src:"media/images/advent-of-jazz-orchestra.jpg", label:"The Advent of Jazz",
+            credit:"An orchestra mixing Indian and Western instruments: sitar, tabla, violin, mandolin and guitar. Credit to confirm." },
+    camera:{ center:[77.602, 12.9715], zoom:13.4, pitch:35, bearing:-12 },
+    year:1920, decade:true, hist:0.85, pins:{ layers:[] } },
+
+
+  { id:"brv", kicker:"1930s", title:"BRV Talkies",
+    body:["The picture house brought Western music and dance to Bangalore's screens."],
+    media:{ src:"media/images/brv-talkies.jpg", label:"BRV Talkies",
+            credit:"BRV Talkies. The banner advertises “Dangerously They Live”, a 1941 Hollywood film, so the photo likely dates from the early 1940s." },
+    fact:{ text:"The banner on BRV Talkies advertises “Dangerously They Live” (1941), a Warner Bros. thriller starring John Garfield, Nancy Coleman and Raymond Massey, directed by Robert Florey.",
+           media:{ src:"media/images/dangerously-they-live-poster.jpg", label:"“Dangerously They Live” poster, 1941" },
+           credit:"Film poster: Warner Bros., 1941" },
+    camera:{ center:[77.602, 12.9715], zoom:13.8, pitch:40, bearing:-18 },
+    year:1930, decade:true, hist:0.85, scrim:true, pins:{ layers:[] } },
+
+
+  { id:"eliteaces", kicker:"1933 · Bangalore's jazz age", title:"The Elite Aces",
+    body:["The Anglo-Indian brothers Henry and Hal Green formed the eight-member Elite Aces in Bangalore in 1933.",
+          "One listener called it “dance music with a jazz accent”. Across India, hotels and restaurants in Bombay, Calcutta, Bangalore and Delhi were hiring jazz bands, which mostly played covers of American and European records.",
+          "The name outlived the jazz age: by 1966 the Elite Aces were posing with electric guitars."],
+    media:{ src:"media/images/elite-aces-1966.jpg", label:"The Elite Aces, 1966",
+            credit:"The Elite Aces in 1966: Rody, Rex, Pinson, Emil" },
+    source:{ text:"Google Arts & Culture: Finding the Groove, Pioneers of Jazz in India 1930s–1960s", href:"https://artsandculture.google.com/story/finding-the-groove-pioneers-of-jazz-in-india-1930s-1960s-american-institute-of-indian-studies/ugUB2MY1IHrgjQ?hl=en" },
+    camera:{ center:[77.602, 12.9715], zoom:13.8, pitch:40, bearing:-18 },
+    year:1933, hist:0.85, scrim:true, pins:{ layers:[] } },
+
+
+  { id:"dancehalls", kicker:"1930s", title:"Where the city danced",
+    body:["Eleven British-era dance halls, theatres, clubs and pubs. Nearly all of them sat within a short walk of each other in the Cantonment."],
+    media:{ src:"media/images/old-bull-and-bush-bullards.jpg", label:"The Old Bull and Bush",
+            credit:"For The Old Bull and Bush: a Bullards' Beers enamel sign of the kind British pubs displayed (artwork signed A. J. Munnings)." },
+    list:"dance",
+    source:{ text:"scroll.in", href:"https://scroll.in/article/681273/a-25-member-bangalore-band-in-the-1930s-that-mixed-hindustani-carnatic-and-jazz" },
+    camera:{ layer:"dance", pitch:30, bearing:-10, maxZoom:15.2 },
+    year:1935, decade:false, hist:0.75, pins:{ layers:["dance"] } },
+
+
+  { id:"theatres", kicker:"MG Road & Brigade Road", title:"Theatre row",
+    body:["Plaza, the Opera House, Rex and Funnells Dance Bar (today the Deccan Herald building) stood a few hundred metres apart."],
+    media:{ src:"media/images/funnells-dance-hall.jpg", label:"Funnells dance hall, MG Road",
+            credit:"Funnells on MG Road, before it shut in 1947 and became the Deccan Herald building. Pic: The CityTab, sourced by NJ Ravichander" },
+    fact:{ text:"Funnells stood next door to Higginbothams, the bookshop whose wall announced “Established Eighteen Forty Four” and called itself the “Booklovers Rendezvous”.", credit:"From a period photo, IBCC Digital Archive" },
+    camera:{ keys:["dance-5","dance-6","dance-7","dance-10"], pitch:50, bearing:25, maxZoom:16.6 },
+    year:1938, hist:0.6, pins:{ layers:["dance"], highlight:["dance-5","dance-6","dance-7","dance-10"] } },
+
+
+  { id:"clubs", kicker:"Members only", title:"The clubs",
+    body:["The Bowring Institute, the Catholic Club and the BUS Club (today's Bangalore Club), along with the Victoria Hotel, were where colonial society held its dances and band nights.",
+          "The clubs kept house bands for decades. Veteran musician Silu Jamal remembers tenor saxophonist Bruce Gabriel's big band at the Bowring Institute, and guitarist Eddie and his Rhythm Stars at the Catholic Club."],
+    source:{ text:"The Hindu: The sound of music in Bengaluru", href:"https://www.thehindu.com/news/cities/bangalore/the-sound-of-music-in-bengaluru/article31899305.ece" },
+    media:{ src:"media/images/bangalore-club-ball.jpg", label:"A ball at the Bangalore Club", credit:"Bangalore Club ball, early 1900s (date and source to confirm)" },
+    camera:{ keys:["dance-1","dance-8","dance-9","dance-11"], pitch:50, bearing:-30, maxZoom:16.4 },
+    year:1940, hist:0.6, pins:{ layers:["dance"], highlight:["dance-1","dance-8","dance-9","dance-11"] } },
+
+
+  { id:"townhall", kicker:"1943 · Town Hall", title:"The Saraswathi Orchestra",
+    body:["Jazz, improvisation and then Indo-jazz.",
+          "A 25-member Bangalore band that blended Hindustani, Carnatic and jazz played the Town Hall: an early seed of the fusion that runs through the city's music."],
+    media:{ src:"media/images/saraswathi-orchestra-1950s.jpg", label:"The Saraswathi Orchestra",
+            credit:"Vintage photo of the Sarasavani Orchestra, 1950s Bangalore. Pic: © Shashi Gundurao" },
+    source:{ text:"scroll.in: a 25-member Bangalore band that mixed Hindustani, Carnatic and jazz", href:"https://scroll.in/article/681273/a-25-member-bangalore-band-in-the-1930s-that-mixed-hindustani-carnatic-and-jazz" },
+    camera:{ keys:["dance-2"], pitch:55, bearing:15, maxZoom:16.8 },
+    year:1943, hist:0.6, pins:{ layers:["dance"], highlight:["dance-2"] } },
+
+
+  { id:"ch2", chapter:2, kicker:"Chapter 2 · 1950s", title:"Transition to Rock and Roll",
+    body:["After the war, a new beat crossed the oceans on records and on film."],
+    media:{ label:"Rock and roll arrives: archival photo" },
+    camera:CITY, year:1950, decade:true, hist:0.5, scrim:true, pins:{ layers:[] } },
+
+
+  { id:"rocket88", kicker:"1951", title:"“Rocket 88”",
+    body:["Jackie Brenston and his Delta Cats' “Rocket 88” (1951) is often called one of the first rock and roll records. The band behind it was Ike Turner's, with Turner on piano."],
+    media:{ src:"media/images/rocket-88-handy-theatre-poster.jpg", label:"Jackie Brenston, “Rocket 88”, W.C. Handy Theatre, Memphis",
+            credit:"“First time in Memphis!” Poster for Jackie Brenston, “The Terrific Rocket 88 Sensation”, with Ike Turner, “The King of the Piano”, W.C. Handy Theatre, Sat. & Sun. April 7–8 (1951, to confirm)" },
+    camera:CITY, year:1951, hist:0.5, scrim:true, pins:{ layers:[] } },
+
+
+  { id:"chuckberry", kicker:"1958", title:"Chuck Berry: “Johnny B. Goode”",
+    body:["The guitar-driven song that became a template for rock and roll."],
+    media:{ src:"media/images/chuck-berry-johnny-b-goode.jpg", label:"Chuck Berry, “Johnny B. Goode”, 1958",
+            credit:"Chuck Berry, “Johnny B. Goode”: mono LP cover (reissue; label and year to confirm)" },
+    camera:CITY, year:1958, hist:0.5, scrim:true, pins:{ layers:[] } },
+
+
+  { id:"shammi", kicker:"On screen", title:"Bollywood adaptations",
+    body:["Hindi cinema took the new beat and made it its own, with Shammi Kapoor as its on-screen rock and roll star."],
+    media:{ src:"media/images/jeevan-jyoti-1953.jpg", label:"Jeevan Jyoti (1953): Shammi Kapoor's first film",
+            credit:"Shammi Kapoor and Chand Usmani in Jeevan Jyoti (1953), his screen debut. Poster source to confirm" },
+    fact:{ text:"Shammi Kapoor began as a clean-cut romantic lead in Jeevan Jyoti (1953). The rock and roll swagger came later in the decade, and by the early 1960s he was Hindi cinema's own Elvis." },
+    camera:CITY, year:1960, decade:true, hist:0.5, scrim:true, pins:{ layers:[] } },
+
+
+  { id:"ch3", chapter:3, kicker:"Chapter 3 · 1960s", title:"The Trippy Movement",
+    body:["Psychedelic rock, and a generation looking East."],
+    media:{ src:"media/images/hippie-trail-map.jpg", label:"The Hippie Trail",
+            credit:"The overland Hippie Trail: Europe to Istanbul, Tehran, Herat, Kabul, Peshawar, Lahore and Delhi, then on to Goa, Kathmandu, Benares and beyond. Map: Wikimedia Commons (to confirm)" },
+    camera:{ center:[40, 25], zoom:1.6, pitch:0, bearing:0 }, year:1965, hist:0, scrim:true, pins:{ layers:[] } },
+
+
+  { id:"hippies", kicker:"1967 · The hippie movement", title:"The Summer of Love",
+    body:["From San Francisco's Haight-Ashbury, the counterculture spread across the world."],
+    media:{ src:"media/images/haight-ashbury-sit-in.jpg", label:"Flower children, San Francisco, 1967",
+            credit:"Singing, guitars and a peace-sign bag: young hippies at a sit-in, San Francisco, 1960s. Source to confirm" },
+    fact:{ text:"Ken Kesey's Merry Pranksters toured the counterculture in a painted school bus, its destination sign reading “Furthur”.",
+           media:{ src:"media/images/furthur-bus.jpg", label:"The Merry Pranksters' bus, Furthur" }, credit:"Photo: San Francisco Chronicle / Hearst Newspapers, via Getty Images (licence needed before public use)" },
+    where:[{ name:"San Francisco", sub:"Haight-Ashbury, USA", c:[-122.447, 37.769] }],
+    camera:{ center:[-122.447, 37.769], zoom:11, pitch:30, bearing:0 }, year:1967, hist:0, pins:{ layers:[] } },
+
+
+  { id:"beatlesindia", kicker:"1968 · Rishikesh", title:"The Beatles in India",
+    body:["The Beatles wave reached India itself when the band came to Rishikesh in 1968."],
+    media:{ src:"media/images/beatles-rishikesh-1968.jpg", label:"The Beatles in Rishikesh, 1968",
+            credit:"George Harrison, Paul McCartney and John Lennon, garlanded, with friends at the Rishikesh ashram, 1968. Other names and source to confirm" },
+    where:[{ name:"Rishikesh", sub:"Maharishi's ashram, India", c:[78.294, 30.114] }],
+    camera:{ center:[78.294, 30.114], zoom:9, pitch:40, bearing:0 }, year:1968, hist:0, pins:{ layers:[] } },
+
+
+  { id:"woodstock", kicker:"August 1969 · Bethel, New York", title:"Woodstock",
+    body:["Sri Swami Satchidananda opened the festival, and Ravi Shankar played sitar to the crowd. India was on the world's biggest rock stage."],
+    media:{ src:"media/images/woodstock-poster-1969.jpg", label:"Woodstock poster, 1969", credit:"“3 Days of Peace & Music”: the Woodstock Music & Art Fair poster, August 1969, designed by Arnold Skolnick" },
+    fact:{ text:"Back home, Bangalore's rock fans caught the Woodstock film at the Plaza on MG Road, and The Last Waltz at the Imperial.", credit:"Remembered by Kirtana Kumar" },
+    where:[{ name:"Bethel, New York", sub:"Woodstock, USA", c:[-74.880, 41.701] }],
+    camera:{ center:[-74.880, 41.701], zoom:10, pitch:40, bearing:0 }, year:1969, hist:0, pins:{ layers:[] } },
+
+
+  { id:"hippietrail", kicker:"1960s–70s · Istanbul to Goa", title:"The Hippie Trail",
+    body:["Young Westerners travelled overland to India by bus, van and thumb: through Istanbul, Tehran, Herat and Kabul, over the Khyber Pass to Lahore and Delhi, then south to Goa or north to Kathmandu.",
+          "They came looking for gurus, cheap living and a different kind of freedom, and they brought their records and guitars with them. The trail closed in 1979, when revolution in Iran and war in Afghanistan cut the road."],
+    media:{ src:"media/images/hippie-trail-bus-desert.jpg", label:"Camping by the bus on the overland trail",
+            credit:"Travellers camped beside their bus in the desert on the overland route. Date, place and source to confirm" },
+    fact:{ text:"At the end of the road were cheap hotel rooms, shared by whoever turned up, with a guitar in the corner and a picture of Ganesha on the wall.",
+           media:{ src:"media/images/hippie-trail-room.jpg", label:"Travellers in a shared room on the trail" }, credit:"Place, date and photographer to confirm" },
+    where:[{ name:"Istanbul", c:[28.98, 41.01] }, { name:"Tehran", c:[51.39, 35.69] }, { name:"Kabul", c:[69.18, 34.53] }, { name:"Delhi", c:[77.21, 28.61] }, { name:"Kathmandu", c:[85.32, 27.71] }, { name:"Goa", c:[73.83, 15.49] }, { name:"Bangalore", c:[77.59, 12.97] }],
+    camera:{ center:[58, 30], zoom:2.8, pitch:0, bearing:0 }, year:1969, hist:0, pins:{ layers:[] } },
+
+
+  { id:"goa", kicker:"Over the seas to Goa", title:"Eight-finger Eddie",
+    body:["Eight-finger Eddie, remembered as the first of Goa's hippies, drew a trail of travellers to its beaches.",
+          "He was born Yertward Mazamanian in Boston in 1924, to an Armenian family, and reached Goa in 1965. Around 1966 he settled at Anjuna, then a quiet fishing village, and word spread along the Hippie Trail.",
+          "In 1975 he started the Anjuna flea market, a place where travellers could hang out and barter what they had. It still runs every Wednesday. Eddie stayed in Anjuna for the rest of his life, and died there in 2010."],
+    media:{ label:"Eight-finger Eddie, Goa" },
+    where:[{ name:"Goa", sub:"Anjuna beach, India", c:[73.740, 15.575] }],
+    source:{ text:"Wikipedia: Eight Finger Eddie", href:"https://en.wikipedia.org/wiki/Eight_Finger_Eddie" },
+    camera:{ center:[73.740, 15.555], zoom:10, pitch:40, bearing:0 }, year:1970, decade:true, hist:0, pins:{ layers:[] } },
+
+
+  { id:"kali", kicker:"Cross-cultural adaptations", title:"Kali and the Rolling Stones",
+    body:["The Rolling Stones' tongue-and-lips logo is often said to have been inspired by an image of the goddess Kali.",
+          "The story goes that Mick Jagger showed designer John Pasche a picture of Kali, with her tongue out, and asked for something with that defiant spirit. The result, first used in 1971, became one of the most famous logos in rock."],
+    media:{ label:"The Rolling Stones logo / Kali" },
+    camera:{ center:[40, 25], zoom:1.6, pitch:0, bearing:0 }, year:1971, hist:0, scrim:true, pins:{ layers:[] } },
+
+
+  { id:"dummarodum", kicker:"1971 · Film representations", title:"“Dum Maro Dum”",
+    body:["Hindi cinema turned the hippie trail into a hit song."],
+    media:{ label:"“Dum Maro Dum”, 1971" },
+    camera:CITY, year:1971, hist:0.5, scrim:true, pins:{ layers:[] } },
+
+
+  { id:"ch4", chapter:4, kicker:"Chapter 4 · 1960s–1970s", title:"The 45 RPM Era",
+    body:["Indian bands started making rock of their own, on 45 RPM records, in beat contests and at open-air festivals."],
+    media:{ src:"media/images/the-mustangs.jpg", label:"The Mustangs", credit:"The Mustangs of Madras in their striped shirts, 1960s. Photo source to confirm" },
+    fact:{ text:"The Mustangs, from Madras, were one of India's most popular bands from 1965 to 1968, playing surf and instrumental rock. In 1968 they recorded for HMV, including their take on The Ventures' “Escape”. Decades later, in 2010, members reunited for shows in Chennai and Bangalore.",
+           credit:"Sources: Garage Hangover, The Mustangs (India); Far Out Magazine" },
+    camera:CITY, year:1963, hist:0.85, scrim:true, pins:{ layers:[] } },
+
+  { id:"trojans", kicker:"1963 · South Parade", title:"The Trojans",
+    body:["After finishing at Bishop Cotton Boys' School, Biddu Appaiah formed The Trojans with school friends including Ken Gnanakan. They played covers of The Beatles, The Rolling Stones and Trini Lopez at local clubs and institutes.",
+          "Biddu was 16. Collarless suits, Cuban heels and mop-tops: the Trojans were pioneering Western rock in South India. Inspired by the Beatles, the four (Biddu, Ken Gnanakan, Arun ‘Skinny’ Verma and Gautam Ubhaykar) played in Bangalore, Calcutta and Bombay before they broke up.",
+          "Performing at Three Aces on South Parade (today's MG Road), one of the city's most popular restaurants, they were spotted and booked for a wedding. Biddu left for Bombay as a solo artist in early 1964, on the way to a career in international pop."],
+    media:{ src:"media/images/trojans-india-psychedelic.jpg", label:"The Trojans, early 1960s",
+            credit:"The Trojans: Biddu, Ken Gnanakan, Arun ‘Skinny’ Verma and Gautam Ubhaykar. From Sidharth Bhatia, India Psychedelic: The Story of a Rocking Generation (HarperCollins, 2014), p. 28" },
+    source:{ text:"Kodur Swaroop: Go Your Own Way (Medium)", href:"https://medium.com/@kodur.swaroop/go-your-own-way-c1934ddf39a9" },
+    fact:{ text:"By 1967 Biddu was on the road with his guitar, Bombay to Basrah to London, hustling his way through Iraq and the Mediterranean, partly on a Haj boat. The dream: meet The Beatles.", credit:"Sources: article on India Psychedelic; Biddu career profile (source to confirm)" },
+    camera:{ keys:["cabaret-2","schools-1"], pitch:45, bearing:-15, maxZoom:15.6 }, year:1963, hist:0.85,
+    pins:{ layers:["cabaret","schools"], highlight:["cabaret-2","schools-1"] } },
+
+
+
+  { id:"ellington", kicker:"3 October 1963 · Lalbagh", title:"Duke Ellington at the Glass House",
+    body:["A rare musical experience, a once-in-a-lifetime occurrence for Bangaloreans: Duke Ellington and his Orchestra played the Glass House in Lalbagh."],
+    media:{ src:"media/images/duke-ellington-glass-house-1963.jpg", label:"Duke Ellington concert poster, 1963",
+            credit:"Concert poster: Glass House, Lal Bagh, Thursday 3 October 1963, 6.30 pm" },
+    gig:{ date:"Thursday, 3 October 1963 · 6.30 pm", tour:"A cultural presentation of the Dept. of State, USA", crowd:"", support:"",
+          song:{ title:"Take the 'A' Train", artist:"Duke Ellington", youtube:"", signature:true } },
+    fact:{ text:"The cheapest ticket to see Duke Ellington was Rs 2 (unreserved). Reserved seats cost Rs 5 and Rs 10, sold at the American Cultural Centre on Narasimharaja Square and at Parade Stores on St Mark's Road.", credit:"From the concert poster" },
+    camera:{ keys:["venues-23"], pitch:50, bearing:-20, maxZoom:16.2 }, year:1963, hist:0.85,
+    pins:{ layers:["venues"], highlight:["venues-23"] } },
+  { id:"blrbands", kicker:"Bangalore bands", title:"The city's own",
+    body:["Bangalore had its own musicians on the circuit, among them Jude Gonsalves (bass), Vincent Lobo (vocals) and Ronnie Johnson (vocals)."],
+    media:{ label:"Jude Gonsalves, Vincent Lobo, Ronnie Johnson" },
+    camera:CBD, year:1966, hist:0.85, pins:{ layers:[] } },
+
+
+  { id:"lido", kicker:"Lido theatre", title:"Sonorific Fantastic",
+    body:["A two-day show at the Lido, billed as a “kinky, freaky musical blow out”, showcased young talent, with bands from Trichy, Mangalore and Madras.",
+          "The girl with the fantastic voice was Usha Iyer, singing pop songs in a sari. The country would come to know her as Usha Uthup."],
+    media:{ src:"media/images/usha-uthup.jpg", label:"Usha Uthup on stage",
+            credit:"Usha Uthup on stage in a sari, with tambourine, a pianist behind her. Date, venue and photographer to confirm" },
+    source:{ text:"The News Minute: Once upon a time in Bangalore, the music bands of the 1960s and 70s", href:"https://www.thenewsminute.com/karnataka/once-upon-time-bangalore-music-bands-1960-and-70s-170215" },
+    camera:{ keys:["venues-3"], pitch:50, bearing:10, maxZoom:16.4 }, year:1966, hist:0.85, popup:"venues-3",
+    pins:{ layers:["venues"], highlight:["venues-3"] } },
+
+  { id:"devilbeats", kicker:"31 December 1968 · BUS Club", title:"The Devil Beats",
+    body:["Allan Fintzel, Romaine Hayes, Chippy Briggs and Ronnie Rikh, playing the BUS Club (today's Bangalore Club)."],
+    media:{ src:"media/images/devil-beats-bus-club-1968.jpg", label:"The Devil Beats at the BUS Club, 31 December 1968",
+            credit:"The Devil Beats perform at the BUS Club, Bangalore, 31 December 1968. Pic credit: Gussy Rikh" },
+    fact:[{ text:"Another night, another look: the Devil Beats swapped paisley waistcoats for white kurtas, with the band's name still on the bass drum.",
+           media:{ src:"media/images/devil-beats-white-kurtas.jpg", label:"The Devil Beats in white kurtas" }, credit:"Date, place and photographer to confirm" },
+          { text:"And before the paisley, sharp suits and Beatle haircuts, with the band's name painted on the bass drum.",
+           media:{ src:"media/images/devil-beats-suits.jpg", label:"The Devil Beats in suits" }, credit:"Date, place and photographer to confirm" }],
+    source:{ text:"Prashanth Vidyasagar: “The good old days…” (LinkedIn)", href:"https://www.linkedin.com/pulse/good-old-days-prashanth-vidyasagar/" },
+    camera:{ keys:["dance-11"], pitch:50, bearing:10, maxZoom:16.6 }, year:1968, hist:0.85, popup:"dance-11",
+    pins:{ layers:["dance"], highlight:["dance-11"] } },
+
+
+
+  { id:"rosepeck", kicker:"A Bangalore love story", title:"Rose and Ginger",
+    body:["Rose Maryann Peck grew up with music at home: her father, Albert Thorn, was a pianist in Bangalore's jazz age, playing with outfits like Freddie Hitchcock and the Melody Makers in the 1950s and 60s.",
+          "Then rock 'n' roll arrived, and it brought Rose together with her husband, Ginger, the drummer of The Devil Beats."],
+    media:{ src:"media/images/india-psychedelic-cover.jpg", label:"India Psychedelic, by Sidharth Bhatia",
+            credit:"Rose's story is told in Sidharth Bhatia's India Psychedelic: The Story of a Rocking Generation (HarperCollins, 2014)" },
+    voice:{ q:"They would play at nightclubs and restaurants like The 3 Aces and Chin Lung, as well as at clubs like Bowring Institute, Catholic Club and BUS Club, which later became Bangalore Club.", who:"Rose Maryann Peck", role:"on The Devil Beats, 1960s" },
+    fact:{ text:"At Hotel Stay Longer in Shivajinagar (later rechristened the Ramada), the disco was called the Golden Nugget, and The Devil Beats played there quite often.", credit:"Rose Maryann Peck, in an article on Sidharth Bhatia's India Psychedelic" },
+    camera:{ keys:["cabaret-2","hangouts-4","dance-8","dance-9","dance-11","hangouts-6"], pitch:35, bearing:-10, maxZoom:15 }, year:1968, hist:0.85,
+    pins:{ layers:["dance","hangouts","cabaret"], highlight:["cabaret-2","hangouts-4","dance-8","dance-9","dance-11","hangouts-6"] } },
+  { id:"simlabeat", kicker:"The Simla Beat Contest", title:"Battle of the bands",
+    body:["Sponsored by Simla cigarettes, the all-India Simla Beat contest ran from 1968 to 1972, with the finals at Shanmukhananda Hall in Bombay. It brought bands from across the country, among them Frustrations Amalgamated from Madras."],
+    media:{ src:"media/images/simla-beat-5th-stage.jpg", label:"The 5th All India Simla Beat Contest",
+            credit:"On stage at the 5th All India Simla Beat Contest, Shanmukhananda Hall, Bombay. Photo likely via Shyam Sunder Damoda (Garage Hangover); credit to confirm" },
+    fact:{ text:"Frustrations Amalgamated from Madras won the 5th All India Simla Beat Contest, taking Best Group, Best Singer and Best Own Composition. The line-up: Shyam Sundar (vocals), Manohar “Manu” Roberts (lead guitar), Ramji (drums), Dumbu (bass) and Lawrence (rhythm guitar).",
+           media:{ src:"media/images/simla-beat-5th-winners-clipping.jpg", label:"Winners of the 5th All India Simla Beat Contest, clipping" },
+           credit:"Sources: Garage Hangover, The Frustrations Amalgamated; Nalla Madras. Year given as 1971 or 1972; 1972 if the contest began in 1968" },
+    source:{ text:"Garage Hangover: The Frustrations Amalgamated", href:"https://garagehangover.com/frustrationsamalgamated/" },
+    camera:CITY, year:1968, hist:0.85, scrim:true, pins:{ layers:[] } },
+
+
+
+  { id:"missinglinks", kicker:"Late 1960s–70s · Band-galore", title:"The Missing Links",
+    body:["The Missing Links were Peter Newman (drums), Cosmas “Cosy” Meyers (guitar), Bandu (bass) and Tommy Chandy (guitar, vocals). They played dances, weddings, parties, clubs, concerts and the cabarets.",
+          "They had plenty of company: the Spartans, the Trojans, the Great Garuda and Human Bondage, plus outstation bands that made Bangalore home, like the Silencers, the Moonrakers and the Atomic Forest.",
+          "The dances, balls and socials at the Catholic, Bowring, Century and Bangalore clubs were where musicians and audiences met."],
+    media:{ src:"media/images/missing-links.jpg", label:"The Missing Links",
+            credit:"The Missing Links, late 1960s. Left to right, as described in the post: Peter Newman (drums), Tommy Chandy, Cosy Meyers, Bandu. Photo credit: Dr Thomas Chandy" },
+    voice:{ q:"Band-galore times they were, indeed!", who:"A bandmate of Cosy Meyers and Tommy Chandy", role:"Facebook post (name to confirm)" },
+    fact:[{ text:"The Dinosaurs, fronted by guitarist Roy Letchu, beat the Missing Links at the Simla Beat Contest and took first prize." },
+          { text:"Where they went next: Peter Newman played for many years at Hotel Ashok, backing Pat Blake, Raymond Carr, Ronny Lyke and Ernest Ignatius. Bandu joined Human Bondage, Skye and Apostrophe; his brother Poggy drummed for the Great Garuda and the Spartans. Cosy retired from HAL and still plays the same guitar." },
+          { text:"Tommy Chandy became Dr Thomas Chandy, an orthopaedic surgeon who worked in the US for 28 years, came home and started Hosmat hospital. In 2000 he formed the Jazz Revivals, with a full wind section, and they played Freedom Jam and World Music Day." }],
+    camera:{ keys:["dance-8","dance-9","dance-11","cabaret-2"], pitch:40, bearing:0, maxZoom:15.4 }, year:1969, hist:0.85,
+    pins:{ layers:["dance","cabaret"], highlight:["dance-8","dance-9","dance-11","cabaret-2"] } },
+
+
+  { id:"spartans", kicker:"1969 · Rex Theatre, Brigade Road", title:"The Spartans",
+    body:["Three of the Spartans on stage at the Rex Theatre on Brigade Road in 1969, under Wills Bristol Filter banners, with the drummer hidden behind them.",
+          "Camouflage flares, long hair, electric guitars: the old order is obliterated."],
+    media:{ src:"media/images/wills-bristol-band-banners.jpg", label:"The Spartans at the Rex Theatre, 1969",
+            credit:"Three members of the Spartans at a gig at the Rex Theatre, Brigade Road, 1969. Drummer obscured. Source to confirm" },
+    fact:{ text:"From the audience, the whole band is in view, drummer included, with the Wills Bristol sign propped against the stage.",
+           media:{ src:"media/images/wills-bristol-band-audience.jpg", label:"The Spartans at the Rex, seen from the audience" }, credit:"Same gig, 1969 (to confirm). Source to confirm" },
+    camera:{ keys:["dance-7"], pitch:50, bearing:15, maxZoom:16.8 }, year:1969, hist:0.85, popup:"dance-7",
+    pins:{ layers:["dance"], highlight:["dance-7"] } },
+  { id:"willsbristol", kicker:"Bristol Beat Contest & Charity Ball", title:"Another cigarette, another stage",
+    body:["Simla wasn't the only cigarette brand backing bands. Wills Bristol Filter had a stage too (“A filter so true all the taste comes through”), with its own Bristol Beat Contest and Charity Ball."],
+    media:{ src:"media/images/bristol-beat-contest-frustrations.jpg", label:"Bristol Beat Contest and Charity Ball",
+            credit:"Shared as “Frustrations Amalgamated at the 1972 Simla Beat Contest in Bombay”, but the banner reads “Bristol Beat Contest and Charity Ball”. Contest and source to confirm" },
+    fact:{ text:"The same Wills Bristol banners hung at the Rex Theatre in 1969, when the Spartans played there in camouflage flares." },
+    camera:CITY, year:1970, decade:true, hist:0.85, scrim:true, pins:{ layers:[] } },
+  { id:"void", kicker:"1971 · Bangalore bands", title:"The Void",
+    body:["Formed in 1971 by two brothers, Ravi Rao (vocals, guitar) and Sudhir Rao (drums), with Fiaz Ahmed on bass and Gussy Rikh on guitar; it was Gussy's second band. The Bangalore Club and the Catholic Club welcomed them.",
+          "They covered Led Zeppelin, Crosby, Stills and Nash, Cream, Janis Joplin, Steppenwolf, Jimi Hendrix and Matthews Southern Comfort.",
+          "In the 1970s, Chin Lung, a tiny restaurant at the bottom of Brigade Road run by Kochil of BarberShop Harmony, became a concert venue for bands like The Spartans, The Void and Human Bondage. Those who couldn't afford it stood outside by St Patrick's Complex with their beers, listening through the open windows."],
+    media:{ src:"media/images/the-void.jpg", label:"The Void on stage",
+            credit:"The Void playing an open-air stage, early 1970s. Date, venue and photographer to confirm" },
+    voice:{ q:"Void was my second band. Formed by two brothers, I was graciously inducted. This in 1971. The Bangalore Club and Catholic Club welcomed the band!", who:"Gussy Rikh", role:"guitarist, The Void" },
+    fact:{ text:"The photo of the Devil Beats at the BUS Club on New Year's Eve 1968, earlier in this story, is credited to Gussy Rikh." },
+    source:HINDU,
+    camera:{ keys:["hangouts-4","dance-11","dance-9"], pitch:50, bearing:-20, maxZoom:16 }, year:1971, hist:0.8,
+    pins:{ layers:["hangouts","dance"], highlight:["hangouts-4","dance-11","dance-9"] } },
+
+
+  { id:"radioceylon", kicker:"On the airwaves", title:"Radio Ceylon",
+    body:["For many listeners, the new music arrived over the radio, through voices like Vernon Corea and Ameen Sayani. Some sets could pick up the BBC and Voice of America, and relatives abroad brought back LPs, which bands played again and again to learn the songs."],
+    media:{ src:"media/images/vernon-corea.jpg", label:"Vernon Corea",
+            credit:"Vernon Corea, the Radio Ceylon broadcaster, with a microphone. Date and photographer to confirm" },
+    voice:{ q:"India was a closed country. Socialism and a weak economy meant that we could not import many things from abroad. In the 1960s, Indian radio stations did not even play western music.", who:"Sidharth Bhatia", role:"author, India Psychedelic: The Story of a Rocking Generation" },
+    camera:CITY, year:1970, decade:true, hist:0.8, scrim:true, pins:{ layers:[] } },
+
+
+  { id:"turntables", kicker:"Turntables", title:"The HMV store",
+    body:["Records were bought at the HMV store, a building that later became Bangalore's Hard Rock Cafe."],
+    media:{ label:"HMV store, Bangalore", credit:"Image courtesy: Shashi Gundurao" },
+    camera:{ keys:["venues-2"], pitch:50, bearing:0, maxZoom:16.8 }, year:1970, decade:true, hist:0.8,
+    pins:{ layers:["venues"], highlight:["venues-2"] } },
+
+
+  { id:"simlalps", kicker:"Simla Beat LPs", title:"On record",
+    body:["The contest released LPs of its bands, among them Confusions from Madras and The Dinosaurs from Bangalore."],
+    media:{ src:"media/images/simla-beat-71-lp.jpg", label:"Simla Beat '71 LP",
+            credit:"Sleeve of the Simla Beat '71 compilation LP. Source to confirm" },
+    camera:CITY, year:1971, hist:0.8, scrim:true, pins:{ layers:[] } },
+
+
+  { id:"snehayatra", kicker:"Winter 1971 · Malavli", title:"Sneha Yatra: the Indian Woodstock",
+    body:["For three days in the winter of 1971, about 5,000 people gathered in the hills at Malavli, between Bombay and Poona, for India's own Woodstock.",
+          "Rock and psychedelia shared the stage with classical music: Atomic Forest, Country Funk Revival, Twilight Zone, The Savages, Windfall and more, alongside Amjad Ali Khan."],
+    media:{ src:"media/images/sneha-yatra-1971.jpg", label:"Sneha Yatra, 1971", credit:"On stage at Sneha Yatra, Malavli, 1971. Credit to confirm" },
+    fact:{ text:"Bangalore was on the bill: Human Bondage played Sneha Yatra.", credit:"Sources: Homegrown; The Revolver Club" },
+    source:{ text:"Homegrown: India's Forgotten Woodstock, Sneha Yatra 1971", href:"https://homegrown.co.in/homegrown-voices/sneha-yatra-71-the-forgotten-legacy-of-indias-very-own-woodstock" },
+    camera:CITY, year:1971, hist:0.85, scrim:true, pins:{ layers:[] } },
+  { id:"humanbondage", kicker:"Bangalore, the popular choice", title:"Human Bondage",
+    body:["Formed in Delhi, later based in Bangalore: Radha Thomas (then Radha Ramchandra), Suresh Shotham, Ramesh Shotham, Xerxes Gobhai, Steve Law, Vinty Bunyan and Henry Babu Joseph. In the 1970s they were India's most popular rock band, and early pioneers of raga rock.",
+          "The band launched careers: Suresh and his brother Ramesh later formed the Spartans in Bombay, and Radha became one of India's leading jazz vocalists."],
+    media:{ src:"media/images/human-bondage-group.jpg", label:"Human Bondage, Bangalore",
+            credit:"Human Bondage, India's most popular rock band of the 1970s and early raga-rock pioneers. Date and photographer to confirm" },
+    fact:[{ text:"Raga rock in action: Radha Thomas sings, an electric guitar on one side of her and an Indian barrel drum on the other.",
+            media:{ src:"media/images/radha-thomas-live.jpg", label:"Radha Thomas on stage with Human Bondage" }, credit:"Date, venue and photographer to confirm" },
+          { text:"On stage, Human Bondage mixed guitars with saxophone, against a swirling psychedelic backdrop.",
+            media:{ src:"media/images/human-bondage-stage-sax.jpg", label:"Human Bondage on stage, with saxophone" }, credit:"Date, venue and photographer to confirm" },
+          { text:"Live under a chandelier: the band playing a ballroom gig.",
+            media:{ src:"media/images/human-bondage-live.jpg", label:"Human Bondage live" }, credit:"Date, venue and photographer to confirm" }],
+    voice:[{ q:"We often used to perform in a seedy little place called Chin Lung on Brigade Road, but we would draw huge crowds. I remember that kids like Prasad would come to listen to us. They couldn't afford to buy lots of drinks, so they would get one bottle of beer and share it.", who:"Radha Thomas", role:"vocalist, Human Bondage (“Prasad” is stylist Prasad Bidapa)" },
+           { q:"We must have made an impact because night after night there were hundreds of people listening to us and recording it in their brains.", who:"Radha Thomas", role:"reviewing India Psychedelic in The Asian Age" }],
+    camera:{ keys:["hangouts-4"], pitch:45, bearing:30, maxZoom:16 }, year:1972, hist:0.8,
+    pins:{ layers:["hangouts"], highlight:["hangouts-4"] } },
+
+
+  { id:"jukebox", kicker:"Diner and “the jukebox”", title:"Koshy's",
+    body:["Koshy's jukebox kept the new records spinning. Musicians met here with acoustic guitars for daytime jams and music-talk over beers, and its Jewel Box had a band every Sunday."],
+    media:{ label:"Koshy's jukebox" }, source:HINDU,
+    camera:{ keys:["hangouts-1"], pitch:55, bearing:20, maxZoom:16.8 }, year:1972, hist:0.8, popup:"hangouts-1",
+    pins:{ layers:["hangouts"], highlight:["hangouts-1"] } },
+
+
+  { id:"performing", kicker:"Performing vs. performer", title:"Performing vs. performer",
+    tbd:true, media:{ label:"Performing vs. performer" },
+    camera:CITY, year:1973, hist:0.8, scrim:true, pins:{ layers:[] } },
+
+
+  { id:"ch5", chapter:5, kicker:"Chapter 5 · 1970s", title:"B'lore: The Hub for Youth",
+    body:["By the 1970s, Bangalore's young people had made rock their own."],
+    media:{ src:"media/images/hub-for-youth-1970s.jpg", label:"B'lore, the hub for youth",
+            credit:"A rock band plays to a packed young crowd in front of a psychedelic mural, 1970s. Band, venue and date to confirm. Image courtesy: Anil David Hussain, Bygone Age (Facebook)" },
+    camera:CBD, year:1970, decade:true, hist:0.7, scrim:true, pins:{ layers:[] } },
+
+
+  { id:"schools", kicker:"Where the bands came from", title:"The schools",
+    body:["The bands grew out of the city's schools and colleges."],
+    list:"schools",
+    camera:{ layer:"schools", pitch:30, bearing:0, maxZoom:15 }, year:1972, hist:0.65, pins:{ layers:["schools"] } },
+
+
+  { id:"shakti", kicker:"Fusion rock", title:"Shakti",
+    body:["Active 1973–78 and again from 2020. John McLaughlin, Shankar Mahadevan and Zakir Hussain; past members L. Shankar, Ramnad Raghavan and Vikku Vinayakram."],
+    media:{ label:"Shakti" },
+    fact:{ text:"When Shakti played Bangalore at the Sophia's grounds, some fans were disappointed to find Larry Coryell on guitar rather than John McLaughlin, but left convinced that violinist L. Shankar was what made the band cook.", credit:"Remembered by Kirtana Kumar" },
+    camera:CITY, year:1973, hist:0.6, scrim:true, pins:{ layers:[] } },
+
+
+  { id:"hangouts", kicker:"The youth took it to schools and colleges", title:"The hangouts",
+    body:["“Even if you weren't a performing musician in the league of these bands, one often met with acoustic guitars for daytime jam sessions or to exchange music and music-talk over beers, at places like Koshys and The Only Place.” (music lover Sunil Abraham)"],
+    list:"hangouts", source:HINDU,
+    camera:{ layer:"hangouts", pitch:35, bearing:-10, maxZoom:15.8 }, year:1974, hist:0.6, pins:{ layers:["hangouts"] } },
+
+
+
+  { id:"weekly1974", kicker:"16 June 1974 · The Illustrated Weekly of India", title:"“Down With God, Country, Parents – Everything!”",
+    body:["The Illustrated Weekly of India put a rock band on its cover for a story on the “Attitudes of Indian Youth Today”."],
+    media:{ src:"media/images/illustrated-weekly-1974-06-16.jpg", label:"The Illustrated Weekly of India, 16 June 1974",
+            credit:"The Illustrated Weekly of India, Vol. XCV No. 16, Sunday 16 June 1974, Rs 1.50. Band on the cover to confirm" },
+    source:{ text:"Internet Archive: The Illustrated Weekly of India, Vol. 95, June–August 1974", href:"https://archive.org/stream/in.ernet.dli.2015.100849/2015.100849.The-Illustrated-Weekly-Of-India-Vol95-No14-26june-aug1974_djvu.txt" },
+    camera:CITY, year:1974, hist:0.6, scrim:true, pins:{ layers:[] } },
+  { id:"onlyplace", kicker:"Museum Road & MG Road", title:"The Only Place and Gaylord",
+    body:["Two of the hangouts where the scene met."],
+    media:{ src:"media/images/the-only-place-1970s.jpg", label:"Outside The Only Place, 1970s",
+            credit:"Regulars outside The Only Place, 1970s. Source to confirm" },
+    fact:{ text:"The Only Place began in the 1960s as Haroon Sait's burger kiosk next to Rex Theatre, reached from Brigade Road, bringing burgers and apple pie to Bangalore. It later moved to Museum Road.", credit:"Source: LBB, The Only Place" },
+    source:{ text:"Medium: Go your own way", href:"https://medium.com/@kodur.swaroop/go-your-own-way-c1934ddf39a9" },
+    camera:{ keys:["hangouts-2","hangouts-5"], pitch:55, bearing:15, maxZoom:16.6 }, year:1975, hist:0.6,
+    pins:{ layers:["hangouts"], highlight:["hangouts-2","hangouts-5"] } },
+
+
+  { id:"paulf1", kicker:"Representation in media", title:"Paul Fernandes",
+    body:["Artist Paul Fernandes captured this Bangalore in his illustrations."],
+    media:{ src:"media/images/victoria-hotel-paul-fernandes.jpg", label:"Victoria Hotel by Paul Fernandes",
+            credit:"“Creative discussion over brunch at Victoria Hotel”. Artwork: Paul Fernandes" },
+    camera:{ keys:["dance-1"], pitch:50, bearing:20, maxZoom:16.4 }, year:1975, hist:0.6, pins:{ layers:["dance"], highlight:["dance-1"] } },
+
+
+  { id:"emergency", kicker:"1975–77", title:"The Emergency",
+    body:["Film, cabaret and magazines like the Junior Statesman shaped youth culture through the Emergency years."],
+    media:{ src:"media/images/js-cover-1974.jpg", label:"JS (Junior Statesman) cover, 19 October 1974", credit:"JS, 19 October 1974: “Every Saturday · Eighty Paise · A Statesman publication”. Inside: Judy Collins." },
+    fact:{ text:"JS, the Statesman's iconic youth magazine of the 1960s and 70s, came out every Saturday for eighty paise. For many young writers of the time it was a first break: one writer remembers: “JS … gave me some of my very first freelance writing opportunities. And I had the most fun doing them too.”",
+           credit:"Source: to confirm" },
+    camera:CITY, year:1975, hist:0.6, scrim:true, pins:{ layers:[] } },
+
+
+  { id:"cabaret", kicker:"Cabaret: its own culture", title:"The cabaret bars",
+    body:["Cabaret had a culture of its own. 3 Aces on MG Road hosted afternoon rock jam sessions and evening cabarets; Pam Crain sang there.",
+          "The “floor show” places, like 3 Aces, Napoli and Talk of the Town, were sophisticated, almost European in standard, and drew visitors in their thousands. The top bands played there, with performers of international repute like Sandra Burby."],
+    voice:{ q:"Ayyoyo what can I do, how can I save my skin, I married a female wrestler and look at the mess I'm in!", who:"Ernest Ignatius (“Ernest Hummingway”)", role:"his hit version of “I Married a Female Wrestler”" },
+    list:"cabaret", source:HINDU,
+    media:{ src:"media/images/paul-fernandes-cabaret-3-aces.jpg", label:"Cabaret at 3 Aces, by Paul Fernandes",
+            credit:"“Cabaret at 3 Aces: Live bands and dancing the night away”. Painting: Paul Fernandes" },
+    camera:{ layer:"cabaret", pitch:45, bearing:10, maxZoom:16.4 }, year:1976, hist:0.55,
+    pins:{ layers:["cabaret"], highlight:["cabaret-2"] } },
+
+
+  { id:"cabaretfilms", kicker:"1978 · Cabaret in films", title:"“If You Come Today”",
+    body:["Kannada cinema's own cabaret number, with Rajkumar on screen (Operation Diamond Racket, 1978)."],
+    media:{ label:"“If You Come Today”, Rajkumar" },
+    camera:CITY, year:1978, hist:0.55, scrim:true, pins:{ layers:[] } },
+
+
+  { id:"bluesgod", kicker:"Late 1970s", title:"Konarak Reddy and Blues God",
+    body:["At 16, guitarist Konarak Reddy arrived and “blew the socks off everybody”. By the end of the '70s his band, Blues God, had numerous fans.",
+          "These bands played original music: the genesis of ‘indie’ music in India."],
+    media:{ label:"Konarak Reddy / Blues God" }, source:HINDU,
+    camera:CBD, year:1979, hist:0.55, scrim:true, pins:{ layers:[] } },
+
+
+  { id:"rockstarfilm", kicker:"The 70s rock star", title:"In movies and in music production",
+    tbd:true, media:{ label:"70s rock star: in movies / in music production" },
+    camera:CITY, year:1979, hist:0.55, scrim:true, pins:{ layers:[] } },
+
+
+  { id:"ch6", chapter:6, kicker:"Chapter 6 · 1980s", title:"Disco, Pop and the Pub",
+    body:["Disco and pop rock, outdoor stages, and the birth of the rock pub."],
+    media:{ label:"Nazia and Zoheb Hassan" },
+    fact:{ text:"Remember these? Uriah Heep at the West End grounds, where a fan stripped and bit keyboardist Ken Hensley. The Bootleg Beatles, with the whole crowd singing “Hey Jude” in the rain. Colossus at Chowdiah Memorial Hall. Gigs at Chit Chat and Knock Out. And jamming in friends' garages: Barry's, Tommy's, Lourde's, Nicky's.", credit:"Remembered by Kirtana Kumar" },
+    camera:CITY, year:1980, hist:0.45, scrim:true, pins:{ layers:[] } },
+
+
+  { id:"disco", kicker:"1980 · Rise of disco & pop rock", title:"“Aap Jaisa Koi”",
+    body:["Nazia Hassan's “Aap Jaisa Koi” from Qurbani (1980) took disco-pop across India. Its producer was Biddu, who had started out in Bangalore with The Trojans.",
+          "His first real break was “Smile for Me” (1969), produced for Japan's The Tigers, which went to No. 1. In a London studio he cut Carl Douglas's “Kung Fu Fighting” in ten minutes flat; it sold 11 million copies. Tina Charles and Jimmy James followed.",
+          "When Feroz Khan asked him to score Qurbani, Biddu brought a teenage Nazia Hassan to a 24-track console, and Bollywood disco was born. Disco Deewane (1981) sold millions across 14 countries and launched Indian pop outside film.",
+          "In the 1990s Alisha Chinai's “Made in India” put Indipop on MTV and sold five million copies. Diamond Sutra (2007) closed five decades of reinvention, and 40 million records, that began on MG Road."],
+    media:{ label:"Nazia Hassan and Biddu, 1980" },
+    fact:{ text:"Biddu's disco echoes through Bappi Lahiri's Bollywood disco and Daler Mehndi's pop anthems." },
+    camera:CITY, year:1980, hist:0.45, scrim:true, pins:{ layers:[] } },
+
+
+  { id:"police", kicker:"1980 · Global artists and concerts", title:"The Police in Bombay",
+    body:["International rock began to tour India. The Police played Bombay in 1980."],
+    media:{ label:"The Police, Bombay, 1980", credit:"Image courtesy: Sreesha Belakvaadi / Adarsh NC" },
+    fact:{ text:"Osibisa's India tour came the following year: their live album “Raghupati Raghava Raja Ram” was billed as an original live recording from the “Concert Tour India '81”.",
+           media:{ src:"media/images/osibisa-india-81-lp.jpg", label:"Osibisa, Raghupati Raghava Raja Ram, LP" }, credit:"From the LP cover" },
+    camera:CITY, year:1980, hist:0.4, scrim:true, pins:{ layers:[] } },
+
+
+  { id:"cubbon", kicker:"Stepping out · Cubbon Park", title:"Music in the park",
+    body:["Bengalureans organised their own Woodstock tribute at Cubbon Park. Regular concerts began at Bal Bhavan, and the Cubbon Park Bandstand had acoustic performances.",
+          "But the authorities saw these gigs as western influence damaging local culture, and the outdoor concerts were stopped."],
+    media:{ label:"Cubbon Park concerts" }, source:HINDU,
+    camera:{ keys:["venues-10","venues-12","venues-11"], pitch:45, bearing:-15, maxZoom:16.2 }, year:1981, hist:0.45,
+    pins:{ layers:["venues"], highlight:["venues-10","venues-12"] } },
+
+
+  { id:"musicstrip", kicker:"1983–86", title:"The Bangalore Music Strip",
+    body:["Sunbeam Motha's Music Strip was a non-profit stage for contemporary music, first on a little embankment on MG Road, then behind the Queen Victoria statue in Cubbon Park. The Chronic Blues Band, Stylus, Hot Rain and Bharat Mata Nach Kud Baja (the Mother India Jive Band) played, and friends sang on the rocks."],
+    media:{ src:"media/images/music-strip-cubbon-park.jpg", label:"The Music Strip, Cubbon Park",
+            credit:"At the Music Strip: the late Umakant Naidu, Peter Isaac (in his lungi) and Geoffrey Pope, nephew of the late Porgy Pope. PC: Venkatachalam, via the Bangalore Rock and Blues WhatsApp group" },
+    fact:[{ text:"There was no power in the park. Venkatachalam rigged a car battery so that “Beam” (Sunbeam Motha) could have electricity at the Strip, which is what let Konarak Reddy play his electric guitar there.", credit:"Remembered by Kirtana Kumar" },
+          { text:"By 1999 Sunbeam was living the simple life on a friend's farm in Bannerghatta, looking after donkeys, a horse called Ugadi, five dogs and a cow called Soapy. He had learned leather craft in Germany, and picked up French and German hitchhiking across Europe. The Asian Age named him one of the people who make the city interesting.",
+            media:{ src:"media/images/asian-age-sunbeam-motha-1999.jpg", label:"“Cool No. 1: Sunbeam Motha”, The Asian Age, 31 December 1999" },
+            credit:"The Asian Age, 31 December 1999. By Anita Saran John; photograph: Syed Asif" }],
+    voice:{ q:"He is the man who nurtured the concept of ‘street music’ in the Music Strip, a regular Sunday concert that had musicians playing free for the public on the rocks at Cubbon Park.", who:"The Asian Age", role:"31 December 1999" },
+    source:HINDU,
+    camera:{ keys:["venues-11"], pitch:55, bearing:20, maxZoom:16.8 }, year:1983, hist:0.45,
+    pins:{ layers:["venues"], highlight:["venues-11"] } },
+
+
+  { id:"paulf2", kicker:"Representation in media", title:"Bangalore, drawn",
+    body:["Paul Fernandes gathered his memories of the decade into a book of watercolours: “Bangalore: Swinging in the 70s”, full of the city's buses, bungalows, hangouts and characters."],
+    media:{ src:"media/images/paul-fernandes-bangalore-swinging-70s.jpg", label:"“Bangalore: Swinging in the 70s” by Paul Fernandes",
+            credit:"Book cover: “Bangalore: Swinging in the 70s”, Paul Fernandes" },
+    camera:CBD, year:1985, hist:0.4, scrim:true, pins:{ layers:[] } },
+
+
+  { id:"westwind", kicker:"Rock bands are back", title:"Shyam and the West Wind",
+    tbd:true, media:{ label:"Shyam and the West Wind" },
+    camera:CITY, year:1986, hist:0.4, scrim:true, pins:{ layers:[] } },
+
+
+  { id:"pubworld", kicker:"1988–89 · Rock-centred pub culture", title:"Pub World",
+    body:["Watering holes like Take 5 on Race Course Road and Pecos off Brigade Road (opened 1989 by Collin Timms) became retro-rock destinations. Take 5 even drew international jazz bands, who played the Delhi and Bombay Jazz Yatras, performed on the rocks at Chitrakala Parishath, then came over for late-night, shutters-down concerts."],
+    media:{ src:"media/images/kingfisher-lager-label.jpg", label:"Kingfisher Lager label", credit:"Kingfisher Lager label from the pub years. Courtesy: Adarsh NC" }, fact:{ text:"Pecos' famous retro-rock collection was largely donated by its own regulars.", credit:"Source: pecospub.com, History of Pecos" },
+    source:HINDU,
+    camera:{ keys:["hangouts-8","venues-9"], pitch:40, bearing:0, maxZoom:15.5 }, year:1989, hist:0.4,
+    pins:{ layers:["hangouts","venues"], highlight:["hangouts-8","venues-9"] } },
+
+
+  { id:"largescale", kicker:"13 May 1989 · Palace Grounds", title:"Rock goes big",
+    body:["Concerts grew into large public events, and the Palace Grounds became the city's big stage. CBS brought the Soviet pop-rock star Valeri Leontiev, with Indian acts on the same bill: Remo, Rock Machine, Joe Alvares and Sharon Prabhakar."],
+    media:{ src:"media/images/valeri-leontiev-ticket-1989.jpg", label:"Ticket: Valeri Leontiev at Palace Grounds, 1989",
+            credit:"CBS presents Valeri Leontiev, Saturday 13 May 1989, Palace Grounds, 7.30 pm. Ticket courtesy: Adarsh NC" },
+    fact:{ text:"Look at the price: the ticket was printed at Rs 50, then stamped down to Rs 35.", credit:"From the ticket" },
+    camera:{ keys:["venues-1"], pitch:45, bearing:-20, maxZoom:15.4 }, year:1989, hist:0.35,
+    pins:{ layers:["venues"], highlight:["venues-1"] } },
+
+
+  { id:"ch7", chapter:7, kicker:"Chapter 7 · 1990s–2010s", title:"Rock in the EDM Era",
+    body:["Competitions, open stages and a new wave of original music: Bangalore becomes the ‘metal Mecca’ of India."],
+    media:{ src:"media/images/pecos-trance-ad.jpg", label:"Pecos ad: rock versus trance",
+            credit:"Pecos ad: “Frank Zappa once said, there's no hell, there's only Paris. But then, Zappa had never been to pubs that play trance.” Source to confirm" },
+    fact:{ text:"When trance took over the clubs, Pecos advertised its loyalty to rock: “at Pecos you can still hear Tull instead of trance. And Houses of the Holy instead of house.”", credit:"From the Pecos ad" },
+    camera:CITY, year:1990, decade:true, hist:0.25, pins:{ layers:[] } },
+
+
+  { id:"millennium", kicker:"1988 · India's first metal band", title:"Millennium",
+    body:["Formed in Bangalore in 1988, Millennium started out as an Iron Maiden covers band and became India's first-ever heavy metal band.",
+          "They went on to support Deep Purple and Megadeth, and laid the ground for the city's reputation as India's metal Mecca."],
+    media:{ src:"media/images/millennium-band.jpg", label:"Millennium",
+            credit:"Millennium, Bangalore's pioneering metal band (one in a Metallica T-shirt). Date and photographer to confirm" },
+    source:{ text:"Wikipedia: Millennium (Indian band)", href:"https://en.wikipedia.org/wiki/Millennium_(Indian_band)" },
+    camera:CITY, year:1990, decade:true, hist:0.25, scrim:true, pins:{ layers:[] } },
+
+
+  { id:"evergreen", kicker:"1993 · Save the trees", title:"The Evergreen Concert",
+    body:["In 1993 the city's musicians played to save Bangalore's trees. The Evergreen Concert brought three generations onto one bill: Millennium, India's first-ever metal band; Human Bondage, the stars of the 1970s; and guitarist Konarak Reddy."],
+    media:{ src:"media/images/millennium-band-2.jpg", label:"Millennium",
+            credit:"Millennium, India's first-ever metal band. Date and photographer to confirm" },
+    fact:[{ text:"Human Bondage, India's most popular rock band of the 1970s, came back for the cause.",
+            media:{ src:"media/images/human-bondage-stage-sax.jpg", label:"Human Bondage on stage, 1970s" }, credit:"Date, venue and photographer to confirm" },
+          { text:"Konarak Reddy, the guitarist who once played the Music Strip in Cubbon Park off a car battery, completed the bill.",
+            media:{ src:"media/images/konarak-reddy.jpg", label:"Konarak Reddy" }, credit:"Konarak Reddy in a recent concert. Photographer to confirm" }],
+    source:{ text:"Wikipedia: Millennium (Indian band)", href:"https://en.wikipedia.org/wiki/Millennium_(Indian_band)" },
+    camera:CITY, year:1993, hist:0.2, scrim:true, pins:{ layers:[] } },
+
+
+  { id:"g-tull", kicker:"Palace Grounds · 1994", title:"Jethro Tull",
+    gig:{ date:"19 February 1994", tour:"25th Anniversary Tour", crowd:"", support:"",
+           song:{ title:"Aqualung", artist:"Jethro Tull", youtube:"", signature:true } },
+    body:["Ian Anderson brought his flute to the Palace Grounds on Jethro Tull's 25th Anniversary Tour. BPL presented the show, organised by the Performance Arts Trust; a ticket cost Rs 200, and the show began at 7:30 pm."],
+    media:{ src:"media/images/jethro-tull-ticket-1994.jpg", label:"Jethro Tull ticket, Palace Grounds, 19 February 1994",
+            credit:"Ticket No. 234908: “BPL presents Jethro Tull, 25th Anniversary Tour”, Palace Grounds, 19 February 1994. Ticket of Adarsh NC" },
+    camera:{ keys:["venues-1"], pitch:55, bearing:-30, maxZoom:15.6 }, year:1994, hist:0.2, pins:{ layers:["venues"], highlight:["venues-1"] } },
+
+
+  { id:"rsj", kicker:"1993 · The Rock Street Journal", title:"A magazine of our own",
+    body:["In 1993 Amit Saigal and Shena Gamat started The Rock Street Journal, India's first rock magazine. For fans in Bangalore it brought interviews, posters and lyrics, and it covered the country's own bands alongside the global ones."],
+    media:{ src:"media/images/rsj-dec-1995.jpg", label:"The Rock Street Journal, December 1995",
+            credit:"The Rock Street Journal, December '95, Rs 35: Bob Marley, “The Legend Lives On!”, Eric Martin of Mr. Big, Rush and Def Leppard posters, and a free RSJ Shogun lyrics booklet" },
+    fact:{ text:"An early issue, November–December 1993, cost Rs 12. It had Michael Jackson and Deep Purple on the cover, with Ugly Kid Joe, 4 Non Blondes and Coverdale·Page inside.",
+           media:{ src:"media/images/rsj-nov-dec-1993.jpg", label:"The Rock Street Journal, November–December 1993" }, credit:"Cover photo from an eBay listing (auctionz_unlimited)" },
+    camera:CITY, year:1995, hist:0.2, scrim:true, pins:{ layers:[] } },
+
+
+  { id:"taaq", kicker:"Indie rock and the Bangalore sound", title:"Thermal and a Quarter",
+    body:["TAAQ, formed in 1996, called its music “Bangalore rock”. Among its songs: “Meter Mele One-and-a-Half”."],
+    media:{ src:"media/images/taaq-band.jpg", label:"Thermal and a Quarter (TAAQ)",
+            credit:"Thermal and a Quarter, in a recent band portrait. Photographer to confirm" },
+    camera:CITY, year:1996, hist:0.2, scrim:true, pins:{ layers:[] } },
+
+
+  { id:"freedomjam", kicker:"1996 · Samsa, behind Ravindra Kalakshetra", title:"Freedom Jam",
+    body:["Around 1996, musicians Gopal and Geetha Navale and others held the first all-night Freedom Jam on the eve of Independence Day. Sunday jams followed on the first Sunday of every month.",
+          "College bands found a platform; indie rock bands like Galeej Gurus and Thermal and a Quarter, and metal bands like Threnody and Kryptos, emerged. Freedom Jam later moved to the Navales' farm, then to The Club on Mysore Road, where it ran until 2010."],
+    media:{ src:"media/images/freedom-jam-2000-ticket.jpg", label:"Freedom Jam, Dusk 2 Dawn, 14 August 2000",
+            credit:"Freedom Jam “Dusk 2 Dawn” free music festival, Monday 14 August 2000, Guruskool, Nelamangala. Source to confirm" },
+    fact:[{ text:"The Sunday Jams moved to The Club on Mysore Road, open to anything: rap metal, hip hop, acid jazz and your own compositions. “Death metal for ze birds? Find out for yourself.”",
+           media:{ src:"media/images/sunday-jam-the-club-flyer.jpg", label:"Sunday Jam flyer, The Club, Mysore Road" }, credit:"Hand-drawn Sunday Jam flyer, 3 July (year to confirm). Source to confirm" },
+          { text:"Galeej Gurus were one of the indie bands that found their feet at Freedom Jam.",
+           media:{ src:"media/images/galeej-gurus.jpg", label:"Galeej Gurus" }, credit:"Band portrait. Date and photographer to confirm" }],
+    source:HINDU,
+    camera:{ keys:["venues-4"], pitch:55, bearing:-10, maxZoom:16.6 }, year:1996, hist:0.2, popup:"venues-4",
+    pins:{ layers:["venues"], highlight:["venues-4"] } },
+
+
+  { id:"competitions", kicker:"1997 · Indie rock competitions", title:"Strawberry Fields",
+    body:["In 1997 the Strawberry Fields college rock festival began at the National Law School in Nagarbhavi. It became a launch pad for Thermal and a Quarter, Motherjane, Kryptos, Demonic Resurrection and Bhayanak Maut, with more than 8,000 people in the crowd."],
+    media:{ src:"media/images/strawberry-fields-crowd.jpg", label:"Strawberry Fields, NLSIU",
+            credit:"A fan held high above the crowd at Strawberry Fields. Year and photographer to confirm" },
+    fact:[{ text:"Motherjane in 1996, the year before Strawberry Fields began. Bands came from all over the south to play it.",
+            media:{ src:"media/images/motherjane-1996.jpg", label:"Motherjane, 1996" }, credit:"The photo is captioned “Inception, 1996”. Source to confirm" },
+          { text:"Demonic Resurrection, from Mumbai, were among the metal bands the festival helped launch.",
+            media:{ src:"media/images/demonic-resurrection.jpg", label:"Demonic Resurrection" }, credit:"Band portrait. Photographer to confirm" }],
+    camera:{ keys:["venues-5"], pitch:40, bearing:0, maxZoom:14.5 }, year:1997, hist:0.2, popup:"venues-5",
+    pins:{ layers:["venues"], highlight:["venues-5"] } },
+
+
+
+  { id:"graceland", kicker:"31 May 1997 · Kanakapura Road", title:"After Midnight at Graceland",
+    body:["“There's a ‘Rock Happening’ at the poolside ‘Graceland’. 150/- pool in!! The heaviest gig ever!!” A welcome rocker's punch, dinner, surprise gifts, and the instructions: bring your swimwear, B.Y.O.B."],
+    media:{ src:"media/images/after-midnight-graceland-1997.jpg", label:"After Midnight ticket, 1997", credit:"Ticket and hand-drawn map to Graceland, 31 May 1997. Courtesy: Adarsh NC" },
+    gig:{ date:"Saturday, 31 May 1997 · 7 pm onwards", tour:"After Midnight: a poolside “Rock Happening”", crowd:"", support:"Lucidreams, Aftermath, Jam-tree, Anita Saran and more" },
+    fact:{ text:"The ticket came with a hand-drawn map: 22.3 km from the Khodays factory down Kanakapura Road, past the “Ashram on hillok” and the metal arches.", credit:"From the ticket" },
+    camera:{ keys:["venues-24"], pitch:45, bearing:10, maxZoom:14.2 }, year:1997, hist:0,
+    pins:{ layers:["venues"], highlight:["venues-24"] } },
+  { id:"kryptos", kicker:"1998 · Bangalore metal", title:"Kryptos",
+    body:["In 1998 Nolan Lewis and Ganesh Krishnaswamy formed Kryptos in Bangalore. Leather, studs and twin guitars: they became pioneers of modern Indian heavy metal, and helped earn the city its name as India's metal Mecca."],
+    media:{ src:"media/images/kryptos-2.jpg", label:"Kryptos",
+            credit:"Kryptos, Bangalore heavy metal pioneers. Date and photographer to confirm" },
+    fact:{ text:"Strawberry Fields at the National Law School was one of the stages that launched them.",
+           media:{ src:"media/images/kryptos.jpg", label:"Kryptos" }, credit:"Recent band portrait. Photographer to confirm" },
+    camera:CITY, year:1998, hist:0.2, scrim:true, pins:{ layers:[] } },
+
+
+  { id:"palace", kicker:"2001–2011 · Palace Grounds", title:"The world comes to Bangalore",
+    body:["Low entertainment tax and easy access made Bangalore the concert capital of India. On the old royal grounds at Jayamahal, the biggest names in rock played to tens of thousands."],
+    poster:[
+      { d:"1 Apr 2001", b:"Deep Purple" }, { d:"9 Aug 2001", b:"Scorpions" }, { d:"13 Apr 2002", b:"Roger Waters" }, { d:"2 Nov 2002", b:"Elton John" }, { d:"4 Apr 2003", b:"The Rolling Stones" }, { d:"5 Feb 2006", b:"Bryan Adams" },
+      { d:"17 Mar 2007", b:"Iron Maiden" }, { d:"2 Jun 2007", b:"Aerosmith" }, { d:"30 Oct 2011", b:"Metallica" } ],
+    posterNote:"Many of these shows were promoted by Bangalore's DNA Networks.",
+    camera:{ keys:["venues-1"], pitch:40, bearing:0, maxZoom:15.2 }, year:2001, hist:0.2, pins:{ layers:["venues"], highlight:["venues-1"] } },
+
+  { id:"g-purple", kicker:"Palace Grounds · 2001", title:"Deep Purple",
+    gig:{ date:"1 April 2001", tour:"", crowd:"", support:"Thermal and a Quarter (TAAQ)",
+           song:{ title:"Black Night", artist:"Deep Purple", youtube:"" } },
+    setlist:{ id:"3d29d5f", path:"deep-purple/2001/palace-grounds-bangalore-india-3d29d5f", note:"Palace Grounds, 1 Apr 2001" },
+    body:["A Bangalore band, TAAQ, opened for the hard-rock legends. The set included “Black Night”, “Speed King”, “Woman From Tokyo”, “Perfect Strangers” and “Hush”."],
+    media:{ src:"media/images/deep-purple-2001.jpg", label:"Deep Purple, 2001",
+            credit:"Deep Purple around the time of their 2001 Palace Grounds show. Source to confirm" },
+    source:{ text:"setlist.fm", href:"https://www.setlist.fm/setlist/deep-purple/2001/palace-grounds-bangalore-india-3d29d5f.html" },
+    camera:{ keys:["venues-1"], pitch:55, bearing:30, maxZoom:15.6 }, year:2001, hist:0.15, pins:{ layers:["venues"], highlight:["venues-1"] } },
+
+  { id:"g-scorpions", kicker:"Palace Grounds · 2001", title:"Scorpions",
+    gig:{ date:"9 August 2001", tour:"Acoustica tour", crowd:"", support:"",
+           song:{ title:"Wind of Change", artist:"Scorpions", youtube:"", signature:true } },
+    setlist:{ id:"53dc5f05", path:"scorpions/2001/palace-grounds-bangalore-india-53dc5f05", note:"Palace Grounds, 9 Aug 2001" },
+    body:["The German hard rockers brought their unplugged Acoustica tour to the Palace Grounds, months after recording the Acoustica album in Lisbon."],
+    media:{ src:"media/images/scorpions-2001.jpg", label:"Scorpions on the Acoustica tour, 2001",
+            credit:"Scorpions on stage with acoustic guitars, Acoustica tour, 2001. Venue and photographer to confirm" },
+    source:{ text:"setlist.fm: Scorpions, Palace Grounds, Bangalore, 9 August 2001", href:"https://www.setlist.fm/setlist/scorpions/2001/palace-grounds-bangalore-india-53dc5f05.html" },
+    camera:{ keys:["venues-1"], pitch:55, bearing:55, maxZoom:15.6 }, year:2001, hist:0.15, pins:{ layers:["venues"], highlight:["venues-1"] } },
+  { id:"g-waters", kicker:"Palace Grounds · 2002", title:"Roger Waters",
+    gig:{ date:"13 April 2002", tour:"In the Flesh tour", crowd:"about 30,000", support:"",
+           song:{ title:"Another Brick in the Wall", artist:"Roger Waters", youtube:"" } },
+    setlist:{ id:"3bd36c34", path:"roger-waters/2002/palace-grounds-bangalore-india-3bd36c34", note:"Palace Grounds, 13 Apr 2002" },
+    body:["Pink Floyd's Roger Waters arrived with 30 tonnes of equipment for a three-hour show of Pink Floyd classics, including “Time” and “Another Brick in the Wall”."],
+    media:{ src:"media/images/pink-floyd-pink.jpg", label:"Pink Floyd, late 1960s",
+            credit:"Pink Floyd in pink: Nick Mason, David Gilmour, Rick Wright and Roger Waters (right), late 1960s. Photographer to confirm" },
+    source:{ text:"pinkfloydz.com: Roger Waters, In the Flesh tour 2002, Bangalore, Palace Grounds", href:"https://www.pinkfloydz.com/concerts-tours/roger-waters-in-the-flesh-tour-2002/roger-waters-in-the-flesh-tour-2002-13-bangalore-india-palace-grounds/" },
+    camera:{ keys:["venues-1"], pitch:55, bearing:75, maxZoom:15.6 }, year:2002, hist:0.15, pins:{ layers:["venues"], highlight:["venues-1"] } },
+
+  { id:"g-elton", kicker:"Palace Grounds · 2002", title:"Elton John",
+    gig:{ date:"2 November 2002", tour:"Songs from the West Coast tour", crowd:"", support:"",
+           song:{ title:"Your Song", artist:"Elton John", youtube:"", signature:true } },
+    body:["Elton John played the Palace Grounds on the Songs from the West Coast tour. McDowell's No. 1 presented the show; tickets went up to Rs 5,000, and it began at 7 pm."],
+    media:{ src:"media/images/elton-john-ticket-2002.jpg", label:"Elton John ticket, Bangalore Palace Grounds, 2 November 2002",
+            credit:"Ticket: “McDowell's No. 1 presents Elton John”, Rs 5,000, 2 November 2002, 7 pm, Bangalore Palace Grounds" },
+    camera:{ keys:["venues-1"], pitch:55, bearing:95, maxZoom:15.6 }, year:2002, hist:0.15, pins:{ layers:["venues"], highlight:["venues-1"] } },
+  { id:"swarathma", kicker:"2002 · Folk rock from Bangalore", title:"Swarathma",
+    body:["Formed in Bangalore in 2002, Swarathma mixed rock with Indian folk: violin and guitars, kurtas and leather jackets, songs in Hindi and Kannada. They were part of the wave of original music that took over from cover bands in the 2000s."],
+    media:{ src:"media/images/swarathma.jpg", label:"Swarathma",
+            credit:"Swarathma: bass, cymbal, guitars and violin, in kurtas and leather. Band portrait; photographer to confirm" },
+    source:{ text:"Wikipedia: Swarathma", href:"https://en.wikipedia.org/wiki/Swarathma" },
+    camera:CITY, year:2002, hist:0.15, scrim:true, pins:{ layers:[] } },
+  { id:"g-stones", kicker:"Palace Grounds · 2003", title:"The Rolling Stones",
+    gig:{ date:"4 April 2003", tour:"Licks tour", crowd:"20,000–30,000", support:"",
+           song:{ title:"(I Can't Get No) Satisfaction", artist:"The Rolling Stones", youtube:"", signature:true } },
+    body:["The Stones' first-ever show in India."],
+    media:{ src:"media/images/rolling-stones-logo-history.jpg", label:"The Rolling Stones tongue logo, 1971–2017",
+            credit:"The Rolling Stones logo history, 1971–2017. Graphic: @thejimmyaranda" },
+    fact:[{ text:"It poured. The monsoon rain came down on the Palace Grounds, and the band played through it for the full two hours.", credit:"Source: CNN, “Stones rock India”, 5 April 2003" },
+          { text:"The tongue-and-lips logo was designed by John Pasche, then an art student in London, and first appeared on Sticky Fingers in 1971.",
+            media:{ src:"media/images/rolling-stones-tongue.jpg", label:"The Rolling Stones tongue logo" }, credit:"Logo: John Pasche, 1971" }],
+    camera:{ keys:["venues-1"], pitch:55, bearing:120, maxZoom:15.6 }, year:2003, hist:0.15, pins:{ layers:["venues"], highlight:["venues-1"] } },
+
+  { id:"livemusic", kicker:"2005 · Live music", title:"The first live-music ban",
+    body:["To curb dance bars, police banned live gigs in 2005. Musicians and well-wishers protested under the Mahatma Gandhi statue on MG Road, and gigs slowly returned.",
+          "Meanwhile Opus on Palace Road, run by Carlton and Gina Braganza, brought the community back together and introduced karaoke to Bangalore."],
+    media:{ label:"Live music", credit:"Image courtesy: Rajat D." }, source:HINDU,
+    camera:{ keys:["venues-14","venues-13"], pitch:45, bearing:0, maxZoom:15.5 }, year:2005, hist:0.15,
+    pins:{ layers:["venues"], highlight:["venues-14","venues-13"] } },
+
+
+  { id:"g-adams", kicker:"Palace Grounds · 2006", title:"Bryan Adams",
+    gig:{ date:"5 February 2006", tour:"India tour: Mumbai, Bangalore, Delhi, Hyderabad", crowd:"", support:"",
+           song:{ title:"Summer of '69", artist:"Bryan Adams", youtube:"" } },
+    setlist:{ id:"3c3b973", path:"bryan-adams/2006/palace-grounds-bangalore-india-3c3b973", note:"Palace Grounds, 5 Feb 2006",
+      songs:["Kids Wanna Rock","All for Love","Hearts on Fire","Room Service","Open Road","Back to You","Cuts Like a Knife","I'm Ready","Please Forgive Me","When You're Gone","(Everything I Do) I Do It for You","Summer of '69"] },
+    body:["Bryan Adams brought his India tour to the Palace Grounds, one of four cities alongside Mumbai, Delhi and Hyderabad."],
+    media:{ src:"media/images/bryan-adams-india-tour.jpg", label:"Bryan Adams, Live in Concert: Mumbai, Bangalore, Delhi, Hyderabad",
+            credit:"“Netsurf Entertainment presents Bryan Adams, Live in Concert”. Source to confirm" },
+    source:{ text:"setlist.fm: Bryan Adams, Palace Grounds, Bangalore, 5 February 2006", href:"https://www.setlist.fm/setlist/bryan-adams/2006/palace-grounds-bangalore-india-3c3b973.html" },
+    camera:{ keys:["venues-1"], pitch:55, bearing:150, maxZoom:15.6 }, year:2006, hist:0.1, pins:{ layers:["venues"], highlight:["venues-1"] } },
+  { id:"g-maiden", kicker:"Palace Grounds · 2007 · Eddfest", title:"Iron Maiden",
+    gig:{ date:"17 March 2007", tour:"A Matter of Life and Death tour", crowd:"about 38,000", support:"",
+           song:{ title:"The Trooper", artist:"Iron Maiden", youtube:"" } },
+    body:["Eddfest brought Iron Maiden to India for the first time. They played a good part of their new album plus the classics, and “The Trooper” drew the biggest roar of the night."],
+    media:{ label:"Iron Maiden at Palace Grounds, 2007" },
+    source:{ text:"setlist.fm", href:"https://www.setlist.fm/setlist/iron-maiden/2007/palace-grounds-bangalore-india-5bd7bb74.html" },
+    camera:{ keys:["venues-1"], pitch:58, bearing:165, maxZoom:15.6 }, year:2007, hist:0.1, pins:{ layers:["venues"], highlight:["venues-1"] } },
+
+  { id:"g-aerosmith", kicker:"Palace Grounds · 2007", title:"Aerosmith",
+    gig:{ date:"2 June 2007", tour:"Greatest Hits world tour", crowd:"", support:"",
+           song:{ title:"Dream On", artist:"Aerosmith", youtube:"", signature:true } },
+    body:["Aerosmith's first concert in India, produced by DNA Networks."],
+    media:{ src:"media/images/aerosmith-2007-tyler.jpg", label:"Steven Tyler and Joe Perry, Palace Grounds, 2007",
+            credit:"Steven Tyler at the mic, scarves on the stand, Joe Perry behind him. A fan's snapshot; photographer to confirm" },
+    fact:{ text:"From the stage, the Palace Grounds was a sea of lights.",
+           media:{ src:"media/images/aerosmith-2007-crowd.jpg", label:"The crowd at Aerosmith, Palace Grounds, 2007" }, credit:"A fan's snapshot; photographer to confirm" },
+    source:{ text:"Billboard", href:"https://www.billboard.com/music/music-news/aerosmith-set-for-first-india-concert-1323459/" },
+    camera:{ keys:["venues-1"], pitch:58, bearing:210, maxZoom:15.6 }, year:2007, hist:0.1, pins:{ layers:["venues"], highlight:["venues-1"] } },
+
+  { id:"hardrock", kicker:"2007 · St Marks Road", title:"Hard Rock Cafe",
+    body:["India's first Hard Rock Cafe opened in the 1912 Bible Society building on St Marks Road, a stone building with stepped gables that had once been “Blighty's Tea Room”."],
+    media:{ src:"media/images/blighty-tea-rooms.jpg", label:"The Blighty Tea Rooms, St Marks Road",
+            credit:"“The Blighty Tea Rooms”: the building on an early postcard. Via Team-BHP; copyright respective owners" },
+    source:{ text:"Homegrown: How Bengaluru's iconic Bible Society building transformed into a center stage for rock music", href:"https://homegrown.co.in/homegrown-explore/how-bengalurus-iconic-bible-society-building-transformed-into-a-center-stage-for-rock-music" },
+    camera:{ keys:["venues-2"], pitch:55, bearing:-20, maxZoom:16.8 }, year:2007, hist:0.1, popup:"venues-2",
+    pins:{ layers:["venues"], highlight:["venues-2"] } },
+
+
+  { id:"raghudixit", kicker:"2008 · Folk rock in Kannada", title:"The Raghu Dixit Project",
+    body:["Raghu Dixit took Kannada folk songs, a guitar and a violin, and turned them into festival-sized folk rock. The Raghu Dixit Project's first album came out in 2008, and the band went on to play Glastonbury and Later… with Jools Holland."],
+    media:{ src:"media/images/raghu-dixit.jpg", label:"Raghu Dixit on stage",
+            credit:"Raghu Dixit, with a violinist behind him. Date, venue and photographer to confirm" },
+    camera:CITY, year:2008, hist:0, scrim:true, pins:{ layers:[] } },
+
+
+  { id:"newlive", kicker:"2009–2018 · Indiranagar", title:"The new live music",
+    body:["bFlat opened in 2009 as a dedicated live-music space, and The Humming Tree followed in 2013. Many bands launched their careers here.",
+          "Then Indiranagar exploded. Resident associations filed a PIL over noise, and caught between licensing rules and a system that didn't support the arts, venues downed their shutters. Take 5 closed in August 2018, and bFlat soon after."],
+    media:{ label:"The new live music" }, source:HINDU,
+    camera:{ keys:["venues-6","venues-7"], pitch:50, bearing:15, maxZoom:15.8 }, year:2009, hist:0,
+    pins:{ layers:["venues"], highlight:["venues-6","venues-7"] } },
+
+
+  { id:"g-metallica", kicker:"Palace Grounds · 2011 · Rock 'n India", title:"Metallica",
+    gig:{ date:"30 October 2011", tour:"Rock 'n India", crowd:"", support:"Biffy Clyro",
+           song:{ title:"Enter Sandman", artist:"Metallica", youtube:"", signature:true } },
+    body:["Metallica's first-ever show in India, after their Delhi date had to be called off."],
+    media:{ src:"media/images/metallica-palace-grounds-2011.jpg", label:"Metallica and the Palace Grounds crowd, 2011",
+            credit:"Metallica, arm in arm on stage, look out over the Palace Grounds crowd, 30 October 2011. Photographer to confirm" },
+    source:{ text:"Metallica.com", href:"https://www.metallica.com/events/event-10825.html" },
+    camera:{ keys:["venues-1"], pitch:60, bearing:260, maxZoom:15.6 }, year:2011, hist:0, pins:{ layers:["venues"], highlight:["venues-1"] } },
+
+  { id:"boa", kicker:"2012 · Metal in the open air", title:"Bangalore Open Air",
+    body:["Inspired by Germany's Wacken Open Air, Salman U Syed started Bangalore Open Air on 16 June 2012: India's only dedicated open-air metal festival. Kreator headlined, and about 700 people were there at the start."],
+    media:{ src:"media/images/metal-open-air-crowd.jpg", label:"Horns up at an open-air metal festival",
+            credit:"Metal fans under the lights, Mayhem banners on stage. Sent as Wacken Open Air, Germany; festival, place and date to confirm" },
+    fact:{ text:"The traffic went both ways: in 2013 Kryptos became the first Indian metal band to play Wacken Open Air in Germany." },
+    source:{ text:"Wikipedia: Bangalore Open Air", href:"https://en.wikipedia.org/wiki/Bangalore_Open_Air" },
+    camera:CITY, year:2012, hist:0, scrim:true, pins:{ layers:[] } },
+
+
+  { id:"g-gnr", kicker:"Bhartiya City · 2012", title:"Guns N' Roses",
+    gig:{ date:"7 December 2012", tour:"", crowd:"", support:"",
+           song:{ title:"Sweet Child o' Mine", artist:"Guns N' Roses", youtube:"", signature:true } },
+    body:["Axl Rose brought Guns N' Roses to Bangalore, not to the Palace Grounds but to Bhartiya City off Thanisandra Main Road in the north of the city. Gates opened at 4 pm."],
+    media:{ src:"media/images/guns-n-roses-ticket-2012.jpg", label:"Guns N' Roses ticket, 7 December 2012",
+            credit:"Ticket: “Guns N' Roses Live”, 7 December 2012, Bhartiya City, Thanisandra Main Road, Bengaluru. Gold, Admit One / Standing, Sr. No. 0718" },
+    camera:{ keys:["venues-25"], pitch:50, bearing:20, maxZoom:15 }, year:2012, hist:0, popup:"venues-25",
+    pins:{ layers:["venues"], highlight:["venues-25"] } },
+
+
+  { id:"ch8", chapter:8, kicker:"Chapter 8", title:"Who Made It Happen?",
+    body:["Dance bars, schools, hangouts and cabaret: rock music became a clan.",
+          "Every place on this map played a part."],
+    camera:{ all:true, pitch:30, bearing:0, maxZoom:14 }, year:2010, decade:true, hist:0.4,
+    pins:{ layers:["dance","schools","hangouts","cabaret","venues"] } },
+
+
+  { id:"ime", kicker:"27 July 2019 · JP Nagar", title:"Rock in the museum",
+    body:["The Indian Music Experience museum opened in JP Nagar in 2019. Among its walls of sitars, veenas, drums and guitars is a gallery for Indian indie rock: the story on this map, now behind glass."],
+    media:{ src:"media/images/indian-music-experience.jpg", label:"Indian Music Experience, JP Nagar",
+            credit:"Walls of instruments at the Indian Music Experience museum, JP Nagar. Photographer to confirm" },
+    camera:{ keys:["venues-8"], pitch:50, bearing:0, maxZoom:16 }, year:2019, hist:0, popup:"venues-8",
+    pins:{ layers:["venues"], highlight:["venues-8"] } },
+
+
+  { id:"today", kicker:"Today", title:"Bangalore and Rock Today",
+    body:["Music has closed and bounced back in this city decade after decade. The Indian Music Experience museum (2019) now keeps its story.",
+          "“And so it will return. To create. To perform. To entertain. To make a scene.”"],
+    media:{ label:"Bangalore and rock today" }, source:HINDU,
+    camera:CITY, year:2026, hist:0.3, end:true,
+    pins:{ layers:["dance","schools","hangouts","cabaret","venues"] } }
+
+];
+
+let mapReady = false;
+let mode = (EDITOR || location.hash === "#explore") ? "explore" : "story";
+let storyHist = 0.85;
+let currentStep = -1;
+let yearNow = 1920;
+const reduceMotion = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+const storyShown = new Set();
+
+function mediaHtml(m){
+  if(!m) return "";
+  if(m.src) return `<figure class="media${m.spin ? " spin" : ""}"><img src="${esc(m.src)}" alt="${esc(m.label)}" loading="lazy">${m.credit ? `<figcaption class="cap">${esc(m.credit)}</figcaption>` : ""}</figure>`;
+  return `<figure class="media"><div class="ph"><span class="material-icons">photo</span><b>${esc(m.label)}</b><small>Archival image to come</small></div>${m.credit ? `<figcaption class="cap">${esc(m.credit)}</figcaption>` : ""}</figure>`;
+}
+// "Voices": the people who were there, in their own words
+function voiceHtml(v){
+  if(!v) return "";
+  const list = Array.isArray(v) ? v : [v];
+  return list.map(x => `<blockquote class="voice"><p>${esc(x.q)}</p><div class="who">${esc(x.who)}${x.role ? `<span>${esc(x.role)}</span>` : ""}</div></blockquote>`).join("");
+}
+// gig poster: the full Palace Grounds line-up
+function posterHtml(st){
+  if(!st.poster) return "";
+  return `<div class="poster"><div class="ph-h">Live at Palace Grounds</div><ol>${st.poster.map(g =>
+    `<li><b>${esc(g.b)}</b><span>${esc(g.d)}</span></li>`).join("")}</ol>${st.posterNote ? `<div class="pn">${esc(st.posterNote)}</div>` : ""}</div>`;
+}
+// ticket stub for one concert, with a Listen button for its song
+function songSearchUrl(song){ return "https://www.youtube.com/results?search_query=" + encodeURIComponent(song.artist + " " + song.title); }
+function gigHtml(st, i){
+  const g = st.gig; if(!g) return "";
+  const song = g.song;
+  const listen = !song ? "" : song.youtube
+    ? `<button type="button" class="listen" data-play="${i}"><span class="material-icons">play_arrow</span>Listen: ${esc(song.title)}</button>`
+    : `<a class="listen" href="${songSearchUrl(song)}" target="_blank" rel="noopener"><span class="material-icons">play_arrow</span>Listen: ${esc(song.title)}<small>on YouTube</small></a>`;
+  return `<div class="ticket"><div class="stub"><span>ADMIT ONE</span></div><div class="tk">
+    <div class="t-date">${esc(g.date)}</div>
+    ${g.tour ? `<div class="t-row">${esc(g.tour)}</div>` : ""}
+    ${g.support ? `<div class="t-row">Opening: <b>${esc(g.support)}</b></div>` : ""}
+    ${g.crowd ? `<span class="crowd">Crowd: ${esc(g.crowd)}</span>` : ""}
+    ${listen}
+    ${song && song.signature ? `<div class="t-row" style="font-size:12px">Signature song; not confirmed as played that night</div>` : ""}
+  </div></div>`;
+}
+// Setlist panel: setlist = { id (setlist.fm id), songs?[], encore?[], artist?, note? }
+function setlistHtml(st){
+  const sl = st.setlist; if(!sl) return "";
+  const artist = sl.artist || (st.gig && st.gig.song && st.gig.song.artist) || st.title;
+  const url = `https://www.setlist.fm/setlist/${sl.path}.html`;
+  const li = t => `<li><a href="${songSearchUrl({ title:t, artist })}" target="_blank" rel="noopener" title="Find on YouTube">${esc(t)}</a></li>`;
+  const songs = (sl.songs || []).length
+    ? `<ol>${sl.songs.map(li).join("")}</ol>${(sl.encore || []).length ? `<div class="sl-enc">Encore</div><ol>${sl.encore.map(li).join("")}</ol>` : ""}`
+    : "";
+  return `<div class="setlist"><div class="sl-h">Setlist<small>${esc(sl.note || "")}</small></div>${songs}
+    <div class="sl-f">${songs ? `From <a href="${url}" target="_blank" rel="noopener">setlist.fm</a> · tap a song to hear it` : `Full setlist on <a href="${url}" target="_blank" rel="noopener">setlist.fm</a>`}</div></div>`;
+}
+// "Did you know?" boxes: fact = { text, media?, credit? }
+function factHtml(f){
+  if(!f) return "";
+  if(Array.isArray(f)) return f.map(factHtml).join("");
+  return `<aside class="fact"><div class="fact-h"><span class="material-icons">lightbulb</span>Did you know?</div>
+    <p>${esc(f.text)}</p>${f.media ? mediaHtml(f.media) : ""}${f.credit ? `<small>${esc(f.credit)}</small>` : ""}</aside>`;
+}
+function renderStory(){
+  $("story").innerHTML = STORY.map((st, i) => {
+    if(st.hero) return `<section class="step hero" data-step="${i}"><div class="vinyl hero-vinyl" aria-hidden="true"></div><div class="card">
+        <div class="kicker">A scroll-through history</div>
+        <h1>Rock<span>umentary</span></h1>
+        <p>How Bangalore became India's rock city, from colonial dance halls to Freedom Jam.</p>
+        <div class="cue">Scroll to begin<span class="material-icons">keyboard_arrow_down</span></div>
+      </div></section>`;
+    const list = st.list ? `<ol>${PLACES.filter(p => p.layer === st.list).map(p =>
+        `<li${p.lat == null ? ' class="unplaced"' : ""}><span class="n" style="background:${layerById[p.layer].color}">${p.n}</span><span>${esc(p.name)}${p.now ? ` <span style="color:var(--muted)">(${esc(p.now.replace(/^Now /, "now "))})</span>` : ""}${p.lat == null ? ` <em class="loc-unknown">location unknown</em>` : ""}</span></li>`).join("")}</ol>` : "";
+    const sleeveOpen = st.chapter ? `<div class="sleeve"><div class="vinyl" aria-hidden="true"><div class="lbl"><span class="t">SIDE ${st.chapter <= 4 ? "A" : "B"}</span><b>${st.chapter}</b></div></div>` : "";
+    return `<section class="step${st.chapter ? " chapter-start" : ""}" data-step="${i}" ${st.chapter ? `id="chapter-${st.chapter}"` : ""}>${sleeveOpen}<div class="card">
+        <div class="kicker">${esc(st.kicker)}</div>
+        <h2>${esc(st.title)}</h2>
+        ${mediaHtml(st.media)}
+        ${(st.body || []).map(t => `<p>${esc(t)}</p>`).join("")}
+        ${st.tbd ? `<p class="tbd">Storyboard slide: text to come.</p>` : ""}
+        ${voiceHtml(st.voice)}
+        ${posterHtml(st)}
+        ${gigHtml(st, i)}
+        ${setlistHtml(st)}
+        ${factHtml(st.fact)}
+        ${list}
+        ${st.source ? `<p class="src">Source: <a href="${esc(st.source.href)}" target="_blank" rel="noopener">${esc(st.source.text)}</a></p>` : ""}
+        ${st.end ? `<button type="button" class="btn" data-explore><span class="material-icons">explore</span>Explore the map</button>` : ""}
+      </div>${st.chapter ? "</div>" : ""}</section>`;
+  }).join("");
+}
+
+function renderChapterNav(){
+  $("chapters-nav").innerHTML = STORY.filter(st => st.chapter).map(st =>
+    (st.chapter === 1 ? `<div class="side">SIDE A</div>` : st.chapter === 5 ? `<div class="side">SIDE B</div>` : "") +
+    `<a href="#chapter-${st.chapter}" data-ch="${st.chapter}" title="${esc(st.title)}"><span class="dot">${st.chapter}</span><span class="lbl">${esc(st.title)}</span></a>`).join("");
+  $("chapters-nav").addEventListener("click", e => {
+    const a = e.target.closest("a[data-ch]"); if(!a) return;
+    e.preventDefault();
+    document.getElementById("chapter-" + a.dataset.ch).scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block:"center" });
+  });
+}
+function chapterOf(i){ let c = 0; for(let k = 0; k <= i; k++) if(STORY[k].chapter) c = STORY[k].chapter; return c; }
+function tweenYear(target, decade){
+  const from = yearNow, t0 = performance.now(), dur = reduceMotion ? 0 : 900;
+  cancelAnimationFrame(tweenYear.raf);
+  const step = now => {
+    const k = dur ? Math.min(1, (now - t0) / dur) : 1;
+    const v = Math.round(from + (target - from) * (1 - Math.pow(1 - k, 3)));
+    $("year-value").textContent = v + (k === 1 && decade ? "s" : "");
+    if(k < 1) tweenYear.raf = requestAnimationFrame(step); else yearNow = target;
+  };
+  tweenYear.raf = requestAnimationFrame(step);
+}
+
+function storyPadding(){
+  return window.innerWidth <= 720
+    ? { top:70, bottom:Math.round(window.innerHeight * 0.55), left:30, right:30 }
+    : { top:110, bottom:80, left:80, right:520 };
+}
+function storyCamera(cam){
+  let target = null;
+  if(cam.center) target = { center:cam.center, zoom:cam.zoom };
+  else {
+    const pts = PLACES.filter(p => p.lat != null && (cam.all ? true : cam.layer ? p.layer === cam.layer : cam.keys.includes(p.key)));
+    if(!pts.length) return;
+    const b = new maplibregl.LngLatBounds(); pts.forEach(p => b.extend([p.lng, p.lat]));
+    target = map.cameraForBounds(b, { padding:storyPadding(), maxZoom:cam.maxZoom || 16, bearing:cam.bearing || 0 });
+    if(!target) return;
+  }
+  const opts = { ...target, pitch:cam.pitch || 0, bearing:cam.bearing || 0 };
+  if(cam.center && window.innerWidth > 720) opts.offset = [-210, 0];   // keep the city clear of the story column
+  if(reduceMotion) map.jumpTo(opts); else map.flyTo({ ...opts, duration:2200, essential:true, curve:1.3 });
+}
+
+function storyPins(pins){
+  const want = PLACES.filter(p => p.lat != null && pins.layers.includes(p.layer));
+  const hl = pins.highlight || [];
+  let delay = 0;
+  PLACES.forEach(p => {
+    const m = markers[p.key]; if(!m) return;
+    const dot = m.getElement().querySelector(".pin");
+    const on = want.includes(p);
+    if(on && !storyShown.has(p.key)){
+      storyShown.add(p.key);
+      dot.classList.remove("pop"); dot.style.animationDelay = reduceMotion ? "0ms" : delay + "ms";
+      m.addTo(map); void dot.offsetWidth; dot.classList.add("pop");
+      delay += 140;
+    } else if(!on && storyShown.has(p.key)){
+      storyShown.delete(p.key); m.remove();
+    }
+    dot.classList.toggle("hl", hl.includes(p.key));
+    dot.classList.toggle("dim", hl.length > 0 && !hl.includes(p.key));
+    m.getElement().classList.toggle("show-label", hl.includes(p.key));
+    if(m.getPopup().isOpen()) m.togglePopup();
+  });
+  $("places-value").textContent = want.length;
+}
+
+function setStoryHist(v){
+  storyHist = v;
+  if(map.getLayer("historic")){
+    map.setLayoutProperty("historic", "visibility", "visible");
+    map.setPaintProperty("historic", "raster-opacity", v);
+  }
+}
+
+// "You are here" tags for steps away from Bangalore: where = [{ name, sub?, c:[lng,lat] }]
+let whereMarkers = [];
+function clearWhere(){ whereMarkers.forEach(m => m.remove()); whereMarkers = []; }
+function showWhere(list){
+  clearWhere();
+  (list || []).forEach((w, k) => {
+    const el = document.createElement("div");
+    el.className = "where" + (list.length === 1 ? " big" : "");
+    el.innerHTML = `<span class="w-dot"></span><span class="w-tag">${esc(w.name)}${w.sub ? `<small>${esc(w.sub)}</small>` : ""}</span>`;
+    el.setAttribute("aria-label", w.name);
+    whereMarkers.push(new maplibregl.Marker({ element:el, anchor:"left", offset:[-11, 0] }).setLngLat(w.c).addTo(map));
+  });
+}
+function goStep(i){
+  if(!mapReady){ goStep.pending = i; return; }
+  if(mode !== "story" || i === currentStep) return;
+  currentStep = i;
+  const st = STORY[i];
+  document.querySelectorAll(".step").forEach(el => el.classList.toggle("active", +el.dataset.step === i));
+  const ch = chapterOf(i);
+  $("deck-ch").textContent = ch || "–";
+  document.querySelectorAll("#chapters-nav a").forEach(a => a.classList.toggle("on", +a.dataset.ch === ch));
+  storyCamera(st.camera);
+  storyPins(st.pins || { layers:[] });
+  showWhere(st.where);
+  tweenYear(st.year, st.decade);
+  setStoryHist(st.hist == null ? 0.6 : st.hist);
+  $("scrim").classList.toggle("on", !!st.scrim);
+  if(soundtrackOn && st.gig && st.gig.song && st.gig.song.youtube) playSong(st.gig.song);
+  if(st.popup && markers[st.popup]){
+    setTimeout(() => { if(currentStep === i && !markers[st.popup].getPopup().isOpen()) markers[st.popup].togglePopup(); }, reduceMotion ? 0 : 2300);
+  }
+}
+
+const stepObserver = new IntersectionObserver(entries => {
+  entries.forEach(e => { if(e.isIntersecting) goStep(+e.target.dataset.step); });
+}, { rootMargin:"-45% 0px -45% 0px" });
+
+function setInteractive(on){
+  ["scrollZoom","dragPan","dragRotate","doubleClickZoom","touchZoomRotate","keyboard","boxZoom"].forEach(h => on ? map[h].enable() : map[h].disable());
+}
+
+function enterStory(){
+  mode = "story";
+  document.body.classList.add("story");
+  setInteractive(false);
+  Object.values(markers).forEach(m => { m.remove(); const d = m.getElement().querySelector(".pin"); d.classList.remove("hl","dim","pop"); m.getElement().classList.remove("show-label"); if(m.getPopup().isOpen()) m.togglePopup(); });
+  storyShown.clear();
+  currentStep = -1;
+  window.scrollTo(0, 0);
+  goStep(0);
+}
+function enterExplore(){
+  mode = "explore";
+  cancelAnimationFrame(tweenYear.raf);   // stop the story's year counter so the explorer's label sticks
+  document.body.classList.remove("story");
+  clearWhere();
+  setInteractive(true);
+  $("scrim").classList.remove("on");
+  storyShown.clear();
+  Object.values(markers).forEach(m => { const d = m.getElement().querySelector(".pin"); d.classList.remove("hl","dim","pop"); m.getElement().classList.remove("show-label"); if(m.getPopup().isOpen()) m.togglePopup(); });
+  focusedLayer = null;
+  applyVisibility();
+  if(map.getLayer("historic")){
+    map.setPaintProperty("historic", "raster-opacity", hist.opacity);
+    applyHistVisibility();
+  }
+  renderPanel();
+  map.easeTo({ pitch:0, bearing:0, duration:600 });
+  fitTo(PLACES.filter(p => visible[p.layer]));
+}
+
+$("to-explore").addEventListener("click", enterExplore);
+$("back-story").addEventListener("click", enterStory);
+$("story").addEventListener("click", e => { if(e.target.closest("[data-explore]")) enterExplore(); });
+let resizeTimer = null;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => { if(mode === "story" && currentStep >= 0){ const i = currentStep; currentStep = -1; goStep(i); } }, 300);
+});
+
+/* ---------- music: plays a song's official YouTube video in a small player ----------
+   Fill song.youtube with the video id (the part after v= in a YouTube link) to enable it.
+   Sound always starts from a click (browsers block autoplay with sound); once "Soundtrack" is on,
+   each concert's song plays as you scroll to it. */
+let ytPlayer = null, ytReady = null, soundtrackOn = false, nowPlaying = null;
+function loadYouTube(){
+  if(ytReady) return ytReady;
+  ytReady = new Promise((resolve, reject) => {
+    window.onYouTubeIframeAPIReady = () => resolve();
+    const sc = document.createElement("script");
+    sc.src = "https://www.youtube.com/iframe_api"; sc.onerror = () => reject(new Error("YouTube unavailable"));
+    document.head.appendChild(sc);
+    setTimeout(() => reject(new Error("YouTube timeout")), 8000);
+  });
+  return ytReady;
+}
+async function playSong(song){
+  if(!song || !song.youtube) return;
+  if(nowPlaying === song.youtube) return;
+  try { await loadYouTube(); }
+  catch(e){ window.open("https://www.youtube.com/watch?v=" + song.youtube, "_blank", "noopener"); return; }
+  $("player").hidden = false;
+  $("p-title").textContent = song.title + " · " + song.artist;
+  nowPlaying = song.youtube;
+  if(!ytPlayer){
+    ytPlayer = new YT.Player("yt", { videoId:song.youtube, playerVars:{ autoplay:1, rel:0, modestbranding:1 },
+      events:{ onReady:e => e.target.playVideo() } });
+  } else ytPlayer.loadVideoById(song.youtube);
+}
+function stopSong(){
+  if(ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo();
+  nowPlaying = null; $("player").hidden = true;
+}
+$("p-close").addEventListener("click", () => { stopSong(); setSoundtrack(false); });
+$("story").addEventListener("click", e => {
+  const b = e.target.closest("[data-play]"); if(!b) return;
+  playSong(STORY[+b.dataset.play].gig.song);
+});
+function setSoundtrack(on){
+  soundtrackOn = on;
+  const btn = $("soundtrack");
+  btn.setAttribute("aria-pressed", on ? "true" : "false");
+  btn.innerHTML = `<span class="material-icons">${on ? "volume_up" : "volume_off"}</span>Soundtrack: ${on ? "on" : "off"}`;
+  if(on){ const st = STORY[currentStep]; if(st && st.gig) playSong(st.gig.song); }
+  else stopSong();
+}
+$("soundtrack").addEventListener("click", () => setSoundtrack(!soundtrackOn));
+// only offer the soundtrack once at least one song has a real YouTube id
+$("soundtrack").hidden = !STORY.some(st => st.gig && st.gig.song && st.gig.song.youtube);
+
+/* ---------- the deck turns with the page: scroll forward and the record plays forward ---------- */
+let deckTick = false;
+window.addEventListener("scroll", () => {
+  if(deckTick || reduceMotion) return;
+  deckTick = true;
+  requestAnimationFrame(() => { $("deck").style.transform = `rotate(${(window.scrollY * 0.35) % 360}deg)`; deckTick = false; });
+}, { passive:true });
+
+/* ---------- init ---------- */
+PLACES.filter(p => p.lat != null).forEach(makeMarker);
+renderPanel();
+renderStory();
+renderChapterNav();
+document.querySelectorAll(".step").forEach(el => stepObserver.observe(el));
+if(mode === "story"){
+  document.body.classList.add("story");
+  setInteractive(false);
+  Object.values(markers).forEach(m => m.remove());
+}
+function onMapReady(){
+  if(mapReady) return;
+  mapReady = true;
+  if(mode === "story"){ const i = goStep.pending == null ? 0 : goStep.pending; currentStep = -1; goStep(i); }
+  else fitTo(PLACES);
+}
+map.on("load", onMapReady);
+map.on("style.load", () => { if(usingBlank) onMapReady(); });
+// if the street map hasn't arrived after a few seconds (or errors first), carry on over a plain background
+let usingBlank = false;
+function fallBackToBlank(){
+  if(mapReady || usingBlank) return;
+  usingBlank = true;
+  map.setStyle(BLANK_STYLE);
+}
+map.on("error", () => { if(!mapReady) fallBackToBlank(); });
+setTimeout(fallBackToBlank, 6000);
+</script>
+</body>
+</html>
