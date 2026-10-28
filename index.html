@@ -326,7 +326,7 @@
     .step.hero .hero-vinyl{position:absolute;width:min(560px,86vw);height:min(560px,86vw);left:50%;top:50%;margin:calc(min(560px,86vw) / -2) 0 0 calc(min(560px,86vw) / -2);
       animation:spin 14s linear infinite;opacity:.5;z-index:0;pointer-events:none}
     .step.hero{position:relative}
-    .step.hero .card{position:relative;z-index:1}
+    .step.hero .card{position:relative;z-index:1;opacity:1}   /* the title card never fades */
 
     /* a record in a story card that actually spins (e.g. a 78 rpm label) */
     .media.spin{background:none;display:grid;place-items:center;padding:6px 0}
@@ -2340,6 +2340,17 @@ renderPanel();
 renderStory();
 renderChapterNav();
 document.querySelectorAll(".step").forEach(el => stepObserver.observe(el));
+// Belt and braces: after any scroll, make the step under the middle of the screen the current one,
+// so a jump (chapter click, reload part-way down, fast scroll back up) can't leave the wrong step active.
+let syncRaf = 0;
+function syncStepToScroll(){
+  const mid = innerHeight / 2;
+  for(const el of document.querySelectorAll(".step")){
+    const r = el.getBoundingClientRect();
+    if(r.top <= mid && r.bottom >= mid){ goStep(+el.dataset.step); return; }
+  }
+}
+addEventListener("scroll", () => { cancelAnimationFrame(syncRaf); syncRaf = requestAnimationFrame(syncStepToScroll); }, { passive:true });
 if(mode === "story"){
   document.body.classList.add("story");
   setInteractive(false);
