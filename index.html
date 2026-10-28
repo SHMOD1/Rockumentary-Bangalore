@@ -133,6 +133,8 @@
     .pin.dim{opacity:.35;transform:scale(.8)}
     .pin.hl{transform:scale(1.3);box-shadow:2.5px 2.5px 0 #111,0 0 0 5px rgba(255,204,51,.55),0 0 26px rgba(255,204,51,.8)}
     .where{display:flex;align-items:center;gap:8px;pointer-events:none}
+    .where.left{flex-direction:row-reverse}
+    .where.left .w-tag{transform:rotate(2deg)}
     .where .w-dot{width:22px;height:22px;border-radius:50%;background:#e8403a;border:2.5px solid #111;box-shadow:2px 2px 0 #111;flex:none;position:relative}
     .where .w-dot::after{content:"";position:absolute;inset:5px;border-radius:50%;background:#fff}
     .where.big .w-dot{width:30px;height:30px;animation:wherePulse 1.8s ease-out 2}
@@ -1387,7 +1389,7 @@ const STORY = [
             credit:"Travellers camped beside their bus in the desert on the overland route. Date, place and source to confirm" },
     fact:{ text:"At the end of the road were cheap hotel rooms, shared by whoever turned up, with a guitar in the corner and a picture of Ganesha on the wall.",
            media:{ src:"media/images/hippie-trail-room.jpg", label:"Travellers in a shared room on the trail" }, credit:"Place, date and photographer to confirm" },
-    where:[{ name:"Istanbul", c:[28.98, 41.01] }, { name:"Tehran", c:[51.39, 35.69] }, { name:"Kabul", c:[69.18, 34.53] }, { name:"Delhi", c:[77.21, 28.61] }, { name:"Kathmandu", c:[85.32, 27.71] }, { name:"Goa", c:[73.83, 15.49] }, { name:"Bangalore", c:[77.59, 12.97] }],
+    where:[{ name:"Istanbul", c:[28.98, 41.01] }, { name:"Tehran", c:[51.39, 35.69] }, { name:"Kabul", c:[69.18, 34.53] }, { name:"Delhi", c:[77.21, 28.61], side:"left" }, { name:"Kathmandu", c:[85.32, 27.71] }, { name:"Goa", c:[73.83, 15.49], side:"left" }, { name:"Bangalore", c:[77.59, 12.97] }],
     camera:{ center:[58, 30], zoom:2.8, pitch:0, bearing:0 }, year:1969, hist:0, pins:{ layers:[] } },
 
 
@@ -2199,10 +2201,11 @@ function showWhere(list){
   clearWhere();
   (list || []).forEach((w, k) => {
     const el = document.createElement("div");
-    el.className = "where" + (list.length === 1 ? " big" : "");
+    const left = w.side === "left";   // label on the dot's left, for tags that would collide
+    el.className = "where" + (list.length === 1 ? " big" : "") + (left ? " left" : "");
     el.innerHTML = `<span class="w-dot"></span><span class="w-tag">${esc(w.name)}${w.sub ? `<small>${esc(w.sub)}</small>` : ""}</span>`;
     el.setAttribute("aria-label", w.name);
-    whereMarkers.push(new maplibregl.Marker({ element:el, anchor:"left", offset:[-11, 0] }).setLngLat(w.c).addTo(map));
+    whereMarkers.push(new maplibregl.Marker({ element:el, anchor:left ? "right" : "left", offset:[left ? 11 : -11, 0] }).setLngLat(w.c).addTo(map));
   });
 }
 function goStep(i){
