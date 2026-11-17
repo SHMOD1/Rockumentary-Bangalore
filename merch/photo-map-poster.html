@@ -1,0 +1,90 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Rockumentary Photo Map Poster</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@500;700;900&family=Permanent+Marker&display=swap" rel="stylesheet">
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1587px;height:2245px;background:#14162a;overflow:hidden;font-family:"Roboto Condensed",sans-serif;position:relative}
+#mapbox{position:absolute;left:181px;top:211px;width:1225px;height:1643px;border:5px solid #0b0c10;box-shadow:6px 6px 0 #000;overflow:hidden}
+#map,#ov,#lines{position:absolute;inset:0}
+#ov,#lines{pointer-events:none}
+.maplibregl-ctrl-bottom-right,.maplibregl-ctrl-bottom-left{display:none}
+.area{position:absolute;font:28px/1 "Permanent Marker";color:#f3e9d2;letter-spacing:.06em;white-space:nowrap;text-shadow:0 3px 0 rgba(0,0,0,.55);opacity:.85;transform:translate(-50%,-50%) rotate(var(--r))}
+.area.s{font-size:21px;opacity:.7}
+.pin{position:absolute;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;border:3px solid #0b0c10;box-shadow:3px 3px 0 #0b0c10;font:900 14px/24px "Roboto Condensed";text-align:center;color:#0b0c10}
+.edge{position:absolute;display:flex;align-items:center;gap:6px;font:700 14px/1 "Roboto Condensed";color:#0b0c10;background:#f3e9d2;border:2px solid #0b0c10;border-radius:16px;padding:3px 9px 3px 3px;box-shadow:2px 2px 0 #0b0c10;white-space:nowrap}
+.edge .pin{position:static;margin:0;width:24px;height:24px;font-size:12px;line-height:18px;box-shadow:none;border-width:2.5px}
+.osm{position:absolute;right:8px;bottom:6px;font:500 11px "Roboto Condensed";color:rgba(243,233,210,.6)}
+.tile{position:absolute;width:145px;height:175px;background:#f3e9d2;border:2.5px solid #0b0c10;box-shadow:4px 4px 0 #000;padding:6px 6px 0;transform:rotate(var(--r))}
+.tile .ph{width:100%;height:118px;background:#2a2e47 center/cover no-repeat;border:1.5px solid #0b0c10;position:relative;filter:saturate(.85) contrast(1.05)}
+.tile .ph.none{display:flex;align-items:center;justify-content:center;background:repeating-linear-gradient(45deg,var(--c) 0 6px,#0b0c10 6px 8px);opacity:.9}
+.tile .ph.none span{font:16px "Permanent Marker";color:#0b0c10;background:#f3e9d2;padding:2px 6px;border:1.5px solid #0b0c10;transform:rotate(-4deg)}
+.tile .cap{display:flex;align-items:flex-start;gap:5px;margin-top:6px}
+.tile .n{flex:none;min-width:22px;height:22px;padding:0 3px;border-radius:11px;border:2px solid #0b0c10;font:900 12px/18px "Roboto Condensed";text-align:center;color:#0b0c10}
+.tile .t{font:700 13px/1.1 "Roboto Condensed";color:#0b0c10;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.title{position:absolute;left:22px;top:22px;width:456px;height:175px;color:#f3e9d2;padding:4px 6px}
+.title h1{font:54px/1 "Permanent Marker";letter-spacing:.01em}
+.title p{font:700 14px/1.3 "Roboto Condensed";letter-spacing:.16em;text-transform:uppercase;color:#FFD54A;margin:4px 0 12px}
+.key{display:grid;grid-template-columns:repeat(3,auto);gap:9px 18px;justify-content:start}
+.key div{display:flex;align-items:center;gap:7px;font:700 16px/1 "Roboto Condensed"}
+.key span{width:18px;height:18px;border-radius:50%;border:2.5px solid #0b0c10;outline:1.5px solid rgba(243,233,210,.4)}
+</style></head><body>
+<div class="title"><h1>Rockumentary</h1><p>Bangalore's rock map · 1930s to today</p><div class="key"><div><span style="background:#FFD54A"></span>1930s–50s</div><div><span style="background:#FF9F43"></span>1960s</div><div><span style="background:#FF5C8A"></span>1970s</div><div><span style="background:#C07CFF"></span>1980s</div><div><span style="background:#4FA8FF"></span>1990s</div><div><span style="background:#3EE6C8"></span>2000s–today</div></div></div>
+<div id="tiles"></div>
+<div id="mapbox"><div id="map"></div><svg id="lines" width="1215" height="1633"></svg><div id="ov"></div><div class="osm">Map data © OpenStreetMap contributors · OpenFreeMap</div></div>
+<script>
+const ERAS=[["1930s\u201350s", "#FFD54A"], ["1960s", "#FF9F43"], ["1970s", "#FF5C8A"], ["1980s", "#C07CFF"], ["1990s", "#4FA8FF"], ["2000s\u2013today", "#3EE6C8"]], PTS=[{"name": "Bowring Institute", "lat": 12.9716, "lng": 77.6008, "e": 0, "img": "../media/images/bowring-institute.jpg", "n": 1}, {"name": "Catholic Club", "lat": 12.9716, "lng": 77.6049, "e": 0, "img": "../media/images/catholic-club.jpg", "n": 2}, {"name": "Funnells Dance Bar", "lat": 12.9759, "lng": 77.6043, "e": 0, "img": "../media/images/funnells-dance-hall.jpg", "n": 3}, {"name": "Liberty Theatre", "lat": 12.9747, "lng": 77.6104, "e": 0, "img": "../media/images/crystal-picture-palace.jpg", "n": 4}, {"name": "Opera House", "lat": 12.9709, "lng": 77.6072, "e": 0, "img": "../media/images/opera-house.jpg", "n": 5}, {"name": "Plaza Theatre", "lat": 12.9756, "lng": 77.6088, "e": 0, "img": "../media/images/plaza-theatre-1940.jpg", "n": 6}, {"name": "The Old Bull and Bush", "lat": 12.975, "lng": 77.6066, "e": 0, "img": "../media/images/old-bull-and-bush-bullards.jpg", "n": 7}, {"name": "Victoria Hotel", "lat": 12.9705, "lng": 77.6092, "e": 0, "img": "../media/images/victoria-hotel.jpg", "n": 8}, {"name": "BUS Club", "lat": 12.9683, "lng": 77.6034, "e": 0, "img": "../media/images/bus-club.jpg", "n": 9}, {"name": "Rex Theatre", "lat": 12.9699, "lng": 77.6076, "e": 0, "img": "../media/images/rex-theatre.jpg", "n": 10}, {"name": "Town Hall", "lat": 12.9637, "lng": 77.5858, "e": 0, "img": "../media/images/saraswathi-orchestra-1950s.jpg", "n": 11}, {"name": "Bishop Cotton Girls' School", "lat": 12.9722, "lng": 77.5984, "e": 1, "img": "../media/images/bcgs-sports-day.jpg", "n": 12}, {"name": "St. Germain's High School", "lat": 12.9962, "lng": 77.619, "e": 1, "img": "../media/images/st-germains.jpg", "n": 13}, {"name": "Baldwin Boys' High School", "lat": 12.9598, "lng": 77.6078, "e": 1, "img": "../media/images/baldwin-boys.jpg", "n": 14}, {"name": "Baldwin Girls' High School", "lat": 12.9618, "lng": 77.6128, "e": 1, "img": "../media/images/baldwin-postcard.jpg", "n": 15}, {"name": "Bishop Cotton Boys' School", "lat": 12.9672, "lng": 77.5992, "e": 1, "img": "../media/images/bishop-cotton-boys-main-building.jpg", "n": 16}, {"name": "Cathedral High School", "lat": 12.9652, "lng": 77.6012, "e": 1, "img": "", "n": 17}, {"name": "Sacred Heart Girls' High School", "lat": 12.9663, "lng": 77.6106, "e": 1, "img": "../media/images/sacred-heart-girls.jpg", "n": 18}, {"name": "St. Joseph's Boys' High School", "lat": 12.9694, "lng": 77.604, "e": 1, "img": "../media/images/st-josephs-boys-building.jpg", "n": 19}, {"name": "3 Aces", "lat": 12.975, "lng": 77.6112, "e": 2, "img": "../media/images/three-aces-dining-room.jpg", "n": 20}, {"name": "Chin Lung", "lat": 12.9702, "lng": 77.608, "e": 2, "img": "../media/images/chin-lung.jpg", "n": 21}, {"name": "Gaylord", "lat": 12.9754, "lng": 77.6078, "e": 2, "img": "../media/images/gaylord-mg-road.jpg", "n": 22}, {"name": "Hotel Stay Longer / Ramada", "lat": 12.9862, "lng": 77.6049, "e": 2, "img": "", "n": 23}, {"name": "Koshy's", "lat": 12.9751, "lng": 77.6011, "e": 2, "img": "../media/images/koshys-painting.jpg", "n": 24}, {"name": "Kwality's", "lat": 12.9744, "lng": 77.6071, "e": 2, "img": "../media/images/brigade-road-kwality.jpg", "n": 25}, {"name": "The Only Place", "lat": 12.9722, "lng": 77.6053, "e": 2, "img": "../media/images/the-only-place-paul-fernandes.jpg", "n": 26}, {"name": "Bal Bhavan", "lat": 12.9736, "lng": 77.5952, "e": 3, "img": "../media/images/bal-bhavan-stage.jpg", "n": 27}, {"name": "Bangalore Music Strip", "lat": 12.9762, "lng": 77.5993, "e": 3, "img": "../media/images/music-strip-cubbon-park.jpg", "n": 28}, {"name": "Cubbon Park Bandstand", "lat": 12.9748, "lng": 77.5947, "e": 3, "img": "", "n": 29}, {"name": "Lido Theatre", "lat": 12.9737, "lng": 77.6199, "e": 3, "img": "", "n": 30}, {"name": "Mahatma Gandhi statue", "lat": 12.9764, "lng": 77.6012, "e": 3, "img": "", "n": 31}, {"name": "Pecos", "lat": 12.9737, "lng": 77.6083, "e": 3, "img": "../media/images/pecos-trance-ad.jpg", "n": 32}, {"name": "The Pub", "lat": 12.9753, "lng": 77.6056, "e": 3, "img": "../media/images/nasa-pub-ad.jpg", "n": 33}, {"name": "Samsa, behind Ravindra Kalakshetra", "lat": 12.9624, "lng": 77.5871, "e": 3, "img": "", "n": 34}, {"name": "Palace Grounds", "lat": 12.9985, "lng": 77.5921, "e": 4, "img": "../media/images/valeri-leontiev-ticket-1989.jpg", "n": 35}, {"name": "Take 5", "lat": 12.9858, "lng": 77.5868, "e": 4, "img": "", "n": 36}, {"name": "NLSIU: Strawberry Fields", "lat": 12.951, "lng": 77.5188, "e": 4, "img": "", "n": 37}, {"name": "Bhartiya City", "lat": 13.0745, "lng": 77.626, "e": 5, "img": "../media/images/bhartiya-city-concert.jpg", "n": 38}, {"name": "Hard Rock Cafe", "lat": 12.9735, "lng": 77.6013, "e": 5, "img": "../media/images/blighty-tea-rooms.jpg", "n": 39}, {"name": "Opus", "lat": 12.988, "lng": 77.5868, "e": 5, "img": "../media/images/opus-bar.jpg", "n": 40}, {"name": "The Humming Tree", "lat": 12.9786, "lng": 77.6408, "e": 5, "img": "../media/images/humming-tree-stage.jpg", "n": 41}, {"name": "bFlat", "lat": 12.9718, "lng": 77.6412, "e": 5, "img": "../media/images/bflat-interior.jpg", "n": 42}, {"name": "Glass House, Lalbagh", "lat": 12.9507, "lng": 77.5848, "e": 5, "img": "../media/images/duke-ellington-glass-house-1963.jpg", "n": 43}, {"name": "Graceland", "lat": 12.8005, "lng": 77.505, "e": 5, "img": "../media/images/after-midnight-graceland-1997.jpg", "n": 44}, {"name": "Indian Music Experience", "lat": 12.8948, "lng": 77.5853, "e": 5, "img": "", "n": 45}];
+const AREAS=[["CANTONMENT",77.6150,12.9815,-6],["CUBBON PARK",77.5925,12.9770,-8],["RICHMOND TOWN",77.6060,12.9585,4,1],["ULSOOR",77.6215,12.9895,-5,1],["JAYAMAHAL",77.5990,13.0010,3,1],["SHIVAJINAGAR",77.6040,12.9900,-3,1],["RICHMOND RD",77.6170,12.9655,2,1]];
+const INK="#0b0c10",LAND="#1f2336",ROAD="#efe6d0",WATER="#2f6fd1",PARK="#2e6b4a";
+function roadW(k){return["interpolate",["exponential",1.5],["zoom"],10,0.6*k,14,3*k,17,12*k];}
+const ST={version:8,sources:{omt:{type:"vector",url:"https://tiles.openfreemap.org/planet"}},layers:[
+{id:"bg",type:"background",paint:{"background-color":LAND}},
+{id:"park",type:"fill",source:"omt","source-layer":"park",paint:{"fill-color":PARK,"fill-pattern":"hatch"}},
+{id:"green",type:"fill",source:"omt","source-layer":"landcover",filter:["in",["get","class"],["literal",["grass","wood"]]],paint:{"fill-pattern":"hatch"}},
+{id:"water",type:"fill",source:"omt","source-layer":"water",paint:{"fill-color":WATER}},
+{id:"water-edge",type:"line",source:"omt","source-layer":"water",paint:{"line-color":"#9cc3ff","line-width":1.6}},
+{id:"rail",type:"line",source:"omt","source-layer":"transportation",filter:["==",["get","class"],"rail"],paint:{"line-color":"#8a8fa6","line-width":1.4,"line-dasharray":[3,2]}},
+{id:"rmc",type:"line",source:"omt","source-layer":"transportation",minzoom:13,filter:["in",["get","class"],["literal",["minor","service","tertiary"]]],layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":INK,"line-width":roadW(0.9)}},
+{id:"rMc",type:"line",source:"omt","source-layer":"transportation",filter:["in",["get","class"],["literal",["motorway","trunk","primary","secondary"]]],layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":INK,"line-width":roadW(1.9)}},
+{id:"rm",type:"line",source:"omt","source-layer":"transportation",minzoom:13,filter:["in",["get","class"],["literal",["minor","service","tertiary"]]],layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":"#b9b2a3","line-width":roadW(0.5)}},
+{id:"rM",type:"line",source:"omt","source-layer":"transportation",filter:["in",["get","class"],["literal",["motorway","trunk","primary","secondary"]]],layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":ROAD,"line-width":roadW(1.3)}}]};
+function hatch(){const n=12,c=document.createElement("canvas");c.width=c.height=n;const g=c.getContext("2d");g.fillStyle=PARK;g.fillRect(0,0,n,n);g.strokeStyle="#5fb37a";g.lineWidth=1.6;g.beginPath();g.moveTo(0,n);g.lineTo(n,0);g.moveTo(-n/2,n/2);g.lineTo(n/2,-n/2);g.moveTo(n/2,n+n/2);g.lineTo(n+n/2,n/2);g.stroke();return g.getImageData(0,0,n,n);}
+
+// ---- polaroid slots, clockwise from after the title block ----
+const TW=145,TH=175,M=22,GX=(1587-2*M-10*TW)/9,slots=[];
+const col=i=>M+i*(TW+GX), rowY=[M, 2245-M-2*TH-10, 2245-M-TH];
+for(let i=3;i<10;i++)slots.push([col(i),rowY[0]]);
+const sideTop=M+TH+12, sideGap=(rowY[1]-12-sideTop-9*TH)/8;
+for(let j=0;j<9;j++)slots.push([col(9),sideTop+j*(TH+sideGap)]);
+for(let i=9;i>=0;i--)slots.push([col(i),rowY[1]]);
+for(let i=0;i<10;i++)slots.push([col(i),rowY[2]]);
+for(let j=8;j>=0;j--)slots.push([col(0),sideTop+j*(TH+sideGap)]);
+const tiles=document.getElementById("tiles");
+PTS.forEach((q,i)=>{const [x,y]=slots[i];const c=ERAS[q.e][1];const el=document.createElement("div");el.className="tile";
+ el.style.cssText=`left:${x}px;top:${y}px;--r:${(((i*37)%9)-4)*0.45}deg;--c:${c}`;
+ el.innerHTML=(q.img?`<div class="ph" style="background-image:url('${q.img}')"></div>`:`<div class="ph none"><span>photo wanted</span></div>`)+`<div class="cap"><span class="n" style="background:${c}">${q.n}</span><span class="t">${q.name}</span></div>`;tiles.appendChild(el);});
+const map=new maplibregl.Map({container:"map",style:ST,center:[77.6045,12.9738],zoom:14.25,interactive:false,attributionControl:false,preserveDrawingBuffer:true});
+map.on("styleimagemissing",e=>{if(e.id==="hatch"&&!map.hasImage("hatch"))map.addImage("hatch",hatch());});
+const ov=document.getElementById("ov"),svg=document.getElementById("lines"),W=1215,H=1633;
+function overlaps(a,b){return a.x<b.x+b.w&&b.x<a.x+a.w&&a.y<b.y+b.h&&b.y<a.y+a.h;}
+map.once("idle",async()=>{
+ await document.fonts.ready; await Promise.all([...document.querySelectorAll(".ph[style]")].map(d=>new Promise(r=>{const im=new Image();im.onload=im.onerror=r;im.src=d.style.backgroundImage.slice(5,-2);})));
+ AREAS.forEach(([t,lng,lat,r,s])=>{const p=map.project([lng,lat]);const el=document.createElement("div");el.className="area"+(s?" s":"");el.style.setProperty("--r",r+"deg");el.textContent=t;el.style.left=p.x+"px";el.style.top=p.y+"px";ov.appendChild(el);});
+ const inside=[],out=[];
+ PTS.forEach(q=>{const p=map.project([q.lng,q.lat]);q.x=p.x;q.y=p.y;(p.x>18&&p.x<W-18&&p.y>18&&p.y<H-18?inside:out).push(q);});
+ inside.forEach(q=>{q.ox=q.x;q.oy=q.y;});
+ for(let it=0;it<300;it++){for(let i=0;i<inside.length;i++)for(let j=i+1;j<inside.length;j++){const a=inside[i],b=inside[j];let dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)||.1;if(d<34){const m=(34-d)/2;dx/=d;dy/=d;a.x-=dx*m;a.y-=dy*m;b.x+=dx*m;b.y+=dy*m;}}}
+ let lines="";
+ inside.forEach(q=>{if(Math.hypot(q.x-q.ox,q.y-q.oy)>3)lines+=`<line x1="${q.ox}" y1="${q.oy}" x2="${q.x}" y2="${q.y}" stroke="#0b0c10" stroke-width="4"/><line x1="${q.ox}" y1="${q.oy}" x2="${q.x}" y2="${q.y}" stroke="#f3e9d2" stroke-width="1.6"/><circle cx="${q.ox}" cy="${q.oy}" r="3.5" fill="#f3e9d2" stroke="#0b0c10" stroke-width="1.5"/>`;});
+ svg.innerHTML=lines;
+ inside.forEach(q=>{const el=document.createElement("div");el.className="pin";el.style.background=ERAS[q.e][1];el.style.left=q.x+"px";el.style.top=q.y+"px";el.textContent=q.n;ov.appendChild(el);});
+ const placed=[];
+ out.forEach(q=>{const km=Math.round(Math.hypot((q.lat-12.9716)*111,(q.lng-77.5946)*108));const dx=q.x-W/2,dy=q.y-H/2;
+  const ar=Math.abs(dx)/W>Math.abs(dy)/H?(dx>0?"→":"←"):(dy>0?"↓":"↑");
+  const el=document.createElement("div");el.className="edge";el.innerHTML=`<span class="pin" style="background:${ERAS[q.e][1]}">${q.n}</span>${q.name} · ${km} km ${ar}`;ov.appendChild(el);
+  const w=el.offsetWidth,h=el.offsetHeight;let x=Math.min(Math.max(q.x-w/2,12),W-w-12),y=Math.min(Math.max(q.y-h/2,12),H-h-30);
+  for(let t=0;t<20;t++){if(!placed.some(o=>overlaps(o,{x,y,w,h})))break;y+=(q.y>H/2?-1:1)*(h+8);}
+  el.style.left=x+"px";el.style.top=y+"px";placed.push({x,y,w,h});});
+ document.body.dataset.ready=1;
+});
+</script></body></html>
