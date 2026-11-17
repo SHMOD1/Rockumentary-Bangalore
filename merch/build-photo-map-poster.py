@@ -105,8 +105,8 @@ map.once("idle",async()=>{
   const el=document.createElement("div");el.className="edge";el.innerHTML=`<span class="pin" style="background:${ERAS[q.e][1]}">${q.n}</span>${q.name} · ${km} km ${ar}`;ov.appendChild(el);
   const w=el.offsetWidth,h=el.offsetHeight;let x=Math.min(Math.max(q.x-w/2,12),W-w-12),y=Math.min(Math.max(q.y-h/2,12),H-h-30);
   for(let t=0;t<20;t++){if(!placed.some(o=>overlaps(o,{x,y,w,h})))break;y+=(q.y>H/2?-1:1)*(h+8);}
-  el.style.left=x+"px";el.style.top=y+"px";placed.push({x,y,w,h});});
- document.body.dataset.ready=1;
+  el.style.left=x+"px";el.style.top=y+"px";placed.push({x,y,w,h});Object.assign(q,{ex:x,ey:y,ew:w,eh:h,etxt:`${q.name} · ${km} km ${ar}`});});
+ window.EXP={inside,out,lines,W,H}; document.body.dataset.ready=1;
 });
 </script></body></html>'''
 key=''.join(f'<div><span style="background:{c}"></span>{t}</div>' for t,c in ERAS)
