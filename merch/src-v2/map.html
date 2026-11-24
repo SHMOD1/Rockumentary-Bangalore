@@ -1,0 +1,21 @@
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;500;700;900&family=Roboto+Slab:wght@800;900&display=swap" rel="stylesheet">
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<style>html,body{margin:0;background:#1f2336}#map{width:1291px;height:1349px}</style></head><body><div id="map"></div>
+<script>
+const INK="#0b0c10",LAND="#1f2336",ROAD="#efe6d0",WATER="#2f6fd1",PARK="#2e6b4a";
+function roadW(k){return["interpolate",["exponential",1.5],["zoom"],10,0.6*k,14,3*k,17,12*k];}
+const ST={version:8,sources:{omt:{type:"vector",url:"https://tiles.openfreemap.org/planet"}},layers:[
+{id:"bg",type:"background",paint:{"background-color":LAND}},
+{id:"park",type:"fill",source:"omt","source-layer":"park",paint:{"fill-color":PARK}},
+{id:"green",type:"fill",source:"omt","source-layer":"landcover",filter:["in",["get","class"],["literal",["grass","wood"]]],paint:{"fill-color":PARK}},
+{id:"water",type:"fill",source:"omt","source-layer":"water",paint:{"fill-color":WATER}},
+{id:"rail",type:"line",source:"omt","source-layer":"transportation",filter:["==",["get","class"],"rail"],paint:{"line-color":"#8a8fa6","line-width":1.4}},
+{id:"rmc",type:"line",source:"omt","source-layer":"transportation",minzoom:13,filter:["in",["get","class"],["literal",["minor","service","tertiary"]]],paint:{"line-color":INK,"line-width":roadW(0.9)}},
+{id:"rMc",type:"line",source:"omt","source-layer":"transportation",filter:["in",["get","class"],["literal",["motorway","trunk","primary","secondary"]]],paint:{"line-color":INK,"line-width":roadW(1.9)}},
+{id:"rm",type:"line",source:"omt","source-layer":"transportation",minzoom:13,filter:["in",["get","class"],["literal",["minor","service","tertiary"]]],paint:{"line-color":"#b9b2a3","line-width":roadW(0.5)}},
+{id:"rM",type:"line",source:"omt","source-layer":"transportation",filter:["in",["get","class"],["literal",["motorway","trunk","primary","secondary"]]],paint:{"line-color":ROAD,"line-width":roadW(1.3)}}]};
+const map=new maplibregl.Map({container:"map",style:ST,center:[77.6045,12.9757],zoom:14.2,interactive:false,attributionControl:false});
+map.once("idle",()=>document.body.dataset.ready=1);
+</script></body></html>
