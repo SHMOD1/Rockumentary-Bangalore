@@ -29,9 +29,9 @@ D.places.forEach(p=>{p.href=p.img?'data:image/jpeg;base64,'+fs.readFileSync(R+p.
   const sy0=TOP+TH, sgap=(BOT-sy0-10*TH)/11, sideY=j=>sy0+sgap+j*(TH+sgap);
   const slots=[];
   for(let i=1;i<=12;i++)slots.push([colX(i),TOP]);
+  for(let j=0;j<10;j++)slots.push([colX(0),sideY(j)]);
   for(let j=0;j<10;j++)slots.push([colX(12),sideY(j)]);
-  for(let i=12;i>=0;i--)slots.push([colX(i),BOT]);
-  for(let j=9;j>=0;j--)slots.push([colX(0),sideY(j)]);
+  for(let i=0;i<=12;i++)slots.push([colX(i),BOT]);
   const X0=M+TW+14, X1=W-M-TW-14, Y0=TOP+TH+14, MW=1291, MH=BOT-14-280-14-Y0, CY=Y0+MH+14, CH=BOT-14-CY;
   // ---------- map vectors ----------
   const pr=c=>{const q=map.project(c);return f(q.x)+','+f(q.y);};
@@ -71,7 +71,7 @@ D.places.forEach(p=>{p.href=p.img?'data:image/jpeg;base64,'+fs.readFileSync(R+p.
 <rect x="1.25" y="1.25" width="${TW-2.5}" height="36" fill="${INK}"/><text x="${TW/2}" y="25" text-anchor="middle" font-family="Roboto Condensed" font-weight="900" font-size="14" letter-spacing="2.4" fill="${YEL}">ADMIT ONE</text>
 <line x1="8" y1="44" x2="${TW-8}" y2="44" stroke="${INK}" stroke-width="1.6" stroke-dasharray="3 3"/><circle cx="0" cy="44" r="6" fill="${BG}" stroke="${INK}" stroke-width="2"/><circle cx="${TW}" cy="44" r="6" fill="${BG}" stroke="${INK}" stroke-width="2"/>
 <text x="10" y="74" font-family="Roboto Slab" font-weight="900" font-size="21" fill="${INK}"><tspan x="10">START</tspan><tspan x="10" dy="22">HERE →</tspan></text>
-<text y="124" font-family="Roboto Condensed" font-weight="500" font-size="11.5" fill="${INK}">${tspans(wrap('Photos run clockwise, 1 to 45, oldest to newest.','500 11.5px "Roboto Condensed"',TW-20),10,13)}</text></g>`;
+<text y="124" font-family="Roboto Condensed" font-weight="500" font-size="11.5" fill="${INK}">${tspans(wrap('Top row, left side, right side, then bottom: 1 to 45.','500 11.5px "Roboto Condensed"',TW-20),10,13)}</text></g>`;
   // ---------- title & intro ----------
   const introW=W-M-930, ix=W-M-introW;
   const l1=wrap(D.intro[0],'800 26px "Roboto Slab"',introW), l2=wrap(D.intro[1],'400 18px "Roboto Condensed"',introW);
